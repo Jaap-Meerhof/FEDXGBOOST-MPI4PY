@@ -20,5 +20,6 @@ dependencies:
 # conda install -c conda-forge mpi4py
 # pip install python-dp pyfhel scikit-learn phe
 
+# conda install -c conda-forge openmpi mpi4py
+
 # apt install openmpi-bin
-# conda install -c conda-forge mpich
