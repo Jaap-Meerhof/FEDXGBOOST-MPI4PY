@@ -67,7 +67,8 @@ def test_purchase(model): # Author: Jaap Meerhof
     print("Got here5")
 
     import xgboost as xgb
-    xgboostmodel = xgb.XGBClassifier()
+    xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="binary:logistic",
+                           learning_rate=0.3, n_estimators=3, gamma=0.5, reg_alpha=1, reg_lambda=10)
     xgboostmodel.fit(X_train, y_train)
     from sklearn.metrics import accuracy_score
     y_pred_xgb = xgboostmodel.predict(X_test)
