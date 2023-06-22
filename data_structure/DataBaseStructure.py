@@ -152,7 +152,10 @@ class DataBase:
         if(featureName is None):
             featureName = ["Rank_{}_Feature_".format(rank) + str(i) for i in range(nFeatures)]
         
-        assert (len(featureName) is nFeatures) # The total amount of columns must match the assigned name 
+        print(len(featureName))
+        print(nFeatures)
+        print(len(featureName) == nFeatures)
+        assert (len(featureName) == nFeatures) # The total amount of columns must match the assigned name 
         
         dataBase = DataBase()
         for i in range(len(featureName)):

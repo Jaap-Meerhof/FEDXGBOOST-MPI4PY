@@ -29,6 +29,63 @@ def log_distribution(X_train, y_train, y_test):
     logger.warning("DataDistribution, nTrain: %d, zeroRate: %f, nTest: %d, ratioTest: %f, nFeature: %d", 
     nTrain, rTrain, nTest, rTest, X_train.shape[1])
 
+def test_purchase(model): # Author: Jaap Meerhof
+    X_train, y_train, X_test, y_test, fName = get_purchase2()
+    print(y_train.shape)
+    log_distribution(X_train, y_train, y_test)
+    print(y_train.shape)
+
+    print("got here1")
+    X_train_A, X_test_A = X_train[:, 0:300], X_test[:, 0:300]
+    fNameA = fName[0:300]
+    print("got here2")
+    
+    X_train_B, X_test_B = X_train[:, 300:600], X_test[:, 300:600]
+    fNameB = fName[300:600]
+    print("got here4")
+
+    if rank == 1:
+        model.append_data(X_train_A, fNameA)
+        print(y_train.shape)
+        model.append_label(y_train)
+    elif rank == 2:
+        #print("Test", len(X_train_B), len(X_train_B[0]), len(y_train), len(y_train[0]))
+        model.append_data(X_train_B, fNameB)
+        model.append_label(np.zeros_like(y_train.shape))
+
+    model.print_info()
+    model.boost()
+    
+    if rank == 1:
+        y_pred = model.predict(X_test_A, fNameA)
+    elif rank == 2:
+        y_pred = model.predict(X_test_B, fNameB)
+    else:
+        model.predict(np.zeros_like(X_test_A))
+
+    y_pred_org = y_pred.copy()
+    print("Got here5")
+
+    import xgboost as xgb
+    xgboostmodel = xgb.XGBClassifier()
+    xgboostmodel.fit(X_train, y_train)
+    from sklearn.metrics import accuracy_score
+    y_pred_xgb = xgboostmodel.predict(X_test)
+    print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
+
+    return y_pred_org, y_test, model
+
+
+def test_texas(model): # Author: Jaap Meerhof
+    X_train, y_train, X_test, y_test, fName = get_texas()
+    log_distribution(X_train, y_train, y_test)
+
+    X_train_A = X_train[:, 0]
+    fNameA = fName[fName][:, 0:3]
+
+    # X_train_B = X_train[]
+    
+
 
 def test_iris(model):
     X_train, y_train, X_test, y_test, fName = get_iris()
@@ -290,10 +347,15 @@ def main():
                 y_pred, y_test, model = test_default_credit_client(model)
             elif CONFIG["dataset"] == dataset[4]:
                 y_pred, y_test, model = test_aug_data(model)
+            elif CONFIG["dataset"] == dataset[5]:
+                y_pred, y_test, model = test_texas(model) # TODO make
+            elif CONFIG["dataset"] == dataset[6]:
+                y_pred, y_test, model = test_purchase(model)
             if rank == PARTY_ID.ACTIVE_PARTY:
                 model.log_info()
                 acc, auc = model.evaluatePrediction(y_pred, y_test, treeid=99)    
                 print("Prediction: ", acc, auc)
+    
 
     except Exception as e:
         logger.error("Exception occurred", exc_info=True)

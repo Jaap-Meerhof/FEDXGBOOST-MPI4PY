@@ -3,6 +3,66 @@ import pandas as pd
 import numpy as np
 from config import SIM_PARAM, rank, logger
 
+def get_purchase2(): # Author Jaap Meerhof
+    import pickle
+    DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    X = pickle.load(open(DATA_PATH+"purchase_100_features.p", "rb"))
+    y = pickle.load(open(DATA_PATH+"purchase_100_2_labels.p", "rb"))
+    y = y.reshape((y.shape[0], 1))
+    from sklearn.model_selection import train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=10_000, test_size=10_000, random_state=69)
+    fName = []
+    for i in range(600):
+        fName.append(str(i))
+    return X_train, y_train, X_test, y_test, fName
+# get_purchase2()
+
+
+def get_purchase(amount_labels): # Author Jaap Meerhof
+    import urllib.request
+    import pickle
+    print("> Downloading dataset \"purchase\" from JaapCloud1.0...")
+
+    dataX = urllib.request.urlopen("https://jaapmeerhof.nl/index.php/s/5FWyosCLWJaXoHp/download").read() # X
+    X = pickle.loads(dataX)
+    url = None
+    if   amount_labels == 2 :
+        url = "https://jaapmeerhof.nl/index.php/s/QzyN4BTeaaiTX5e"
+    elif amount_labels == 10 :
+        url = "https://jaapmeerhof.nl/index.php/s/xYzz56jHQjMNZCn"
+    elif amount_labels == 20:
+        url = "https://jaapmeerhof.nl/index.php/s/ijpbJq2cbWQiSLf"
+    elif amount_labels == 50:
+        url = "https://jaapmeerhof.nl/index.php/s/gt2yr7ioAW9NMbi"
+    elif amount_labels == 100:
+        url = "https://jaapmeerhof.nl/index.php/s/AB8FrfGR4JXQLFi"
+            
+    datay = urllib.request.urlopen(url + "/download").read() # y
+    y = pickle.loads(datay)
+    print("> done downloading from JaapCloud1.0!")
+    fName = []
+    for i in range(101):
+        fName.append(str(i))
+    
+    return X, y, fName
+
+def get_texas():
+    """Author: Jaap Meerhof
+    """
+    import pickle
+    DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/texas/"
+    DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/texas/"
+    X = pickle.load(open(DATA_PATH+"texas_100_v2_features.p", "rb"))
+    y = pickle.load(open(DATA_PATH+"texas_100_v2_labels.p", "rb"))
+    from sklearn.model_selection import train_test_split
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=10_000, test_size=10_000, random_state=69)
+    fName = ['THCIC_ID', 'SEX_CODE', 'TYPE_OF_ADMISSION', 'SOURCE_OF_ADMISSION', \
+             'LENGTH_OF_STAY', 'PAT_AGE', 'PAT_STATUS', 'RACE', 'ETHNICITY', \
+                'TOTAL_CHARGES', 'ADMITTING_DIAGNOSIS'] # y= 'PRINC_SURG_PROC_CODE'
+    return X_train, X_test, y_train, y_test, fName
+
 def get_iris():
     data = pd.read_csv('./dataset/iris.csv').values
 
@@ -22,6 +82,7 @@ def get_iris():
     
     
     return X_train, y_train, X_test, y_test, fName
+# get_iris()
 
 def get_give_me_credits():
     data = pd.read_csv('./dataset/GiveMeSomeCredit/cs-training.csv')

@@ -8,11 +8,11 @@ import random
 #import matlab.engine
 
 modelArr = ["PlainXGBoost", "FedXGBoost", "SecureBoost", "PseudoSecureBoost", "FedXGBoost-Nys"]
-dataset = ["Iris", "GiveMeCredits", "Adult", "DefaultCredits", "AugData"]
+dataset = ["Iris", "GiveMeCredits", "Adult", "DefaultCredits", "AugData", "texas", "purchase"]
 
 CONFIG = {
-  "model": modelArr[1],
-  "dataset": dataset[1],
+  "model": modelArr[0],
+  "dataset": dataset[6],
   "lambda": 10, # 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 5, 10 ###### CAI SO NAY NE
   "gamma": 0.5, # 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 5, 10  
   "MAX_DEPTH": 3,
