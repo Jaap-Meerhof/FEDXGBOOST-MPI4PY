@@ -31,22 +31,58 @@ def log_distribution(X_train, y_train, y_test):
 
 def test_purchase(model): # Author: Jaap Meerhof
     X_train, y_train, X_test, y_test, fName = get_purchase2()
-    print(y_train.shape)
     log_distribution(X_train, y_train, y_test)
-    print(y_train.shape)
 
-    print("got here1")
     X_train_A, X_test_A = X_train[:, 0:300], X_test[:, 0:300]
     fNameA = fName[0:300]
-    print("got here2")
     
     X_train_B, X_test_B = X_train[:, 300:600], X_test[:, 300:600]
     fNameB = fName[300:600]
-    print("got here4")
 
     if rank == 1:
         model.append_data(X_train_A, fNameA)
-        print(y_train.shape)
+        model.append_label(y_train)
+    elif rank == 2:
+        #print("Test", len(X_train_B), len(X_train_B[0]), len(y_train), len(y_train[0]))
+        model.append_data(X_train_B, fNameB)
+        model.append_label(np.zeros_like(y_train.shape))
+
+    model.print_info()
+    model.boost()
+    
+    if rank == 1:
+        y_pred = model.predict(X_test_A, fNameA)
+        print(model.predict_proba(X_test_A, fNameA))
+    elif rank == 2:
+        y_pred = model.predict(X_test_B, fNameB)
+    else:
+        model.predict(np.zeros_like(X_test_A))
+
+    y_pred_org = y_pred.copy()
+
+    import xgboost as xgb
+    xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="binary:logistic",
+                           learning_rate=0.3, n_estimators=3, gamma=0.5, reg_alpha=1, reg_lambda=10)
+    xgboostmodel.fit(X_train, y_train)
+    from sklearn.metrics import accuracy_score
+    y_pred_xgb = xgboostmodel.predict(X_test)
+    print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
+
+    return y_pred_org, y_test, model
+
+
+def test_texas(model): # Author: Jaap Meerhof
+    X_train, y_train, X_test, y_test, fName = get_texas()
+    log_distribution(X_train, y_train, y_test)
+
+    X_train_A, X_test_A = X_train[:, 0:5], X_test[:, 0:5]
+    fNameA = fName[0:5]
+    
+    X_train_B, X_test_B = X_train[:, 5:11], X_test[:, 5:11]
+    fNameB = fName[5:11]
+
+    if rank == 1:
+        model.append_data(X_train_A, fNameA)
         model.append_label(y_train)
     elif rank == 2:
         #print("Test", len(X_train_B), len(X_train_B[0]), len(y_train), len(y_train[0]))
@@ -64,7 +100,6 @@ def test_purchase(model): # Author: Jaap Meerhof
         model.predict(np.zeros_like(X_test_A))
 
     y_pred_org = y_pred.copy()
-    print("Got here5")
 
     import xgboost as xgb
     xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="binary:logistic",
@@ -75,16 +110,6 @@ def test_purchase(model): # Author: Jaap Meerhof
     print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
 
     return y_pred_org, y_test, model
-
-
-def test_texas(model): # Author: Jaap Meerhof
-    X_train, y_train, X_test, y_test, fName = get_texas()
-    log_distribution(X_train, y_train, y_test)
-
-    X_train_A = X_train[:, 0]
-    fNameA = fName[fName][:, 0:3]
-
-    # X_train_B = X_train[]
     
 
 

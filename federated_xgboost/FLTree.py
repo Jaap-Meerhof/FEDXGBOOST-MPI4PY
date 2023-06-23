@@ -157,7 +157,7 @@ class FLXGBoostClassifierBase():
                 update_pred = np.reshape(update_pred, (data_num, 1))
                 y_pred += update_pred
         return y_pred
-
+     
 
 class PlainFedXGBoost(FLXGBoostClassifierBase):
     def __init__(self, nTree = 3):
@@ -468,4 +468,7 @@ class FLPlainXGBoostTree():
     def predict(self, dataTable, featureName):        
         dataBase = DataBase.data_matrix_to_database(dataTable, featureName)
         return self.fed_predict(dataBase)
-     
+    
+    def predict_proba(self, dataTable, featureName): # Jaap Meerhof
+        dataBase = DataBase.data_matrix_to_database(dataTable, featureName)
+        return 1/(1+np.exp(-self.predict(dataBase)))
