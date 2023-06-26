@@ -167,9 +167,6 @@ class PlainFedXGBoost(FLXGBoostClassifierBase):
             trees.append(tree)
         super().__init__(trees)
 
-
-
-
 class FLPlainXGBoostTree():
     def __init__(self, id, param:XgboostLearningParam = XgboostLearningParam()):
         self.learningParam = param
@@ -177,6 +174,8 @@ class FLPlainXGBoostTree():
         self.nNode = 0
         self.treeID = id
         self.commLogger = CommunicationLogger(N_CLIENTS)
+
+
 
     def fit_fed(self, y, yPred, qDataBase: QuantiledDataBase):
         logger.info("Tree is growing column-wise. Current column: %d", self.treeID)
@@ -472,3 +471,17 @@ class FLPlainXGBoostTree():
     def predict_proba(self, dataTable, featureName): # Jaap Meerhof
         dataBase = DataBase.data_matrix_to_database(dataTable, featureName)
         return 1/(1+np.exp(-self.predict(dataBase)))
+    
+class HFLPlainXGBoostTree(FLPlainXGBoostTree):
+    """
+    This function computes the gradient and the hessian vectors to perform the tree construction
+    """
+    def fit_fed(self, y, yPred, qDataBase: QuantiledDataBase):
+        G = np.array(self.learningParam.LOSS_FUNC.gradient(y, yPred)).reshape(-1)
+        #G = G/ np.linalg.norm(G)
+        H = np.array(self.learningParam.LOSS_FUNC.hess(y, yPred)).reshape(-1)
+        #H = H/ np.linalg.norm(G)
+        logger.debug("Computed Gradients and Hessians ")
+        logger.debug("G {}".format(' '.join(map(str, G))))
+        logger.debug("H {}".format(' '.join(map(str, H))))
+        qDataBase.appendGradientsHessian(G, H) 
