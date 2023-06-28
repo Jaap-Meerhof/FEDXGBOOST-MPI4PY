@@ -5,8 +5,8 @@ from config import SIM_PARAM, rank, logger
 
 def get_purchase2(): # Author Jaap Meerhof
     import pickle
-    DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
-    # DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    # DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
     X = pickle.load(open(DATA_PATH+"purchase_100_features.p", "rb"))
     y = pickle.load(open(DATA_PATH+"purchase_100_2_labels.p", "rb"))
     y = y.reshape((y.shape[0], 1))

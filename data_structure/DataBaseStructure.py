@@ -152,9 +152,9 @@ class DataBase:
         if(featureName is None):
             featureName = ["Rank_{}_Feature_".format(rank) + str(i) for i in range(nFeatures)]
         
-        print(len(featureName))
-        print(nFeatures)
-        print(len(featureName) == nFeatures)
+        # print(len(featureName))
+        # print(nFeatures)
+        # print(len(featureName) == nFeatures)
         assert (len(featureName) == nFeatures) # The total amount of columns must match the assigned name 
         
         dataBase = DataBase()
@@ -185,7 +185,7 @@ class QuantiledDataBase(DataBase):
     def get_merged_splitting_matrix(self):
         retMergedSM = np.array([])
         for key, feature in self.featureDict.items():
-            fSM, sc = self.featureDict[key].get_splitting_info()
+            fSM, sc = self.featureDict[key].get_splitting_info() # splitting matrix, splitting candidites
             if not retMergedSM.size:
                 retMergedSM = fSM
             # Append to the total splitting matrix if the quantiled is feasible

@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from algo.LossFunction import LeastSquareLoss, LogLoss
 from data_structure.DataBaseStructure import QuantileParam
-from federated_xgboost.FLTree import PlainFedXGBoost
+from federated_xgboost.FLTreeH import H_PlainFedXGBoost
 from federated_xgboost.FedXGBoostTree import FEDXGBOOST_PARAMETER, FedXGBoostClassifier
 from config import rank, logger, comm
 from federated_xgboost.SecureBoostTree import PseudoSecureBoostClassifier, SecureBoostClassifier
@@ -36,29 +36,36 @@ def test_purchase(model): # Author: Jaap Meerhof
     # model.append_data(X_train, fName)
     # model.append_label(y_train)
     # quantile = QuantiledDataBase(model.dataBase)
-    # splits = quantile.get_merged_splitting_matrix() #TODO fully understand what this is doing, why is it bigger?!
-    # give all quantiled data to central server such that a tree can be made!
-
-    X_train_A, X_test_A = X_train[:, 0:300], X_test[:, 0:300]
-    fNameA = fName[0:300]
+    # splits = quantile.get_merged_splitting_matrix()
     
-    X_train_B, X_test_B = X_train[:, 300:600], X_test[:, 300:600]
-    fNameB = fName[300:600]
+
+    X_train_A, X_test_A = X_train[:5000, :], X_test[:5000, :]
+    y_train_A = y_train[:5000]
+
+    X_train_B, X_test_B = X_train[5000:, :], X_test[5000:, :]
+    y_train_B = y_train[5000:]
 
     if rank == 1:
-        model.append_data(X_train_A, fNameA)
-        model.append_label(y_train)
+        model.append_data(X_train_A, fName)
+        model.append_label(y_train_A)
     elif rank == 2:
         #print("Test", len(X_train_B), len(X_train_B[0]), len(y_train), len(y_train[0]))
-        model.append_data(X_train_B, fNameB)
-        model.append_label(np.zeros_like(y_train.shape))
+        model.append_data(X_train_B, fName)
+        model.append_label(y_train_B)
+    elif rank == 0: #server
+        model.append_data(X_train, fName)
 
-    model.print_info()
+    # model.print_info()
     model.boost()
     
     if rank == 1:
-        y_pred = model.predict(X_test_A, fNameA)
-        # print(model.predict_proba(X_test_A, fNameA))
+        y_pred = model.predict(X_test_A, fName)
+        # print(model.predict_proba(X_test_A, fName))
+    elif rank == 2:
+        y_pred = model.predict(X_test_B, fName)
+    else: # server
+        pass
+        y_pred = model.predict(X_test, fName)
         import xgboost as xgb
         xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="binary:logistic",
                             learning_rate=0.3, n_estimators=3, gamma=0.5, reg_alpha=1, reg_lambda=10)
@@ -66,14 +73,8 @@ def test_purchase(model): # Author: Jaap Meerhof
         from sklearn.metrics import accuracy_score
         y_pred_xgb = xgboostmodel.predict(X_test)
         print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
-    elif rank == 2:
-        y_pred = model.predict(X_test_B, fNameB)
-    else:
-        model.predict(np.zeros_like(X_test_A))
 
-    y_pred_org = y_pred.copy()
-
-    
+    y_pred_org = y_pred.copy()    
 
     return y_pred_org, y_test, model
 
@@ -354,7 +355,7 @@ def main():
 
         # Model selection
         if CONFIG["model"] == "PlainXGBoost":
-            model = PlainFedXGBoost(XgboostLearningParam.N_TREES)
+            model = H_PlainFedXGBoost(XgboostLearningParam.N_TREES)
         elif CONFIG["model"] == "FedXGBoost":
             model = FedXGBoostClassifier(XgboostLearningParam.N_TREES)
         elif CONFIG["model"] == "SecureBoost": 
@@ -369,9 +370,9 @@ def main():
         XgboostLearningParam.N_TREES, XgboostLearningParam.MAX_DEPTH, XgboostLearningParam.LAMBDA, XgboostLearningParam.GAMMA)
         logger.warning("QuantileParameter, eps: %f, thres: %f", QuantileParam.epsilon, QuantileParam.thres_balance)
         # Dataset selection  
-        y_pred, y_test, model = test_purchase(model) # TODO DELETE AFTER TEST
+        # y_pred, y_test, model = test_purchase(model) # TODO DELETE AFTER TEST
           
-        if rank != 0:
+        if rank != -1:
             if CONFIG["dataset"] == dataset[0]:
                 y_pred, y_test, model = test_iris(model)
             elif CONFIG["dataset"] == dataset[1]:
@@ -386,7 +387,7 @@ def main():
                 y_pred, y_test, model = test_texas(model) # TODO make
             elif CONFIG["dataset"] == dataset[6]:
                 y_pred, y_test, model = test_purchase(model)
-            if rank == PARTY_ID.ACTIVE_PARTY:
+            if rank == PARTY_ID.SERVER:
                 model.log_info()
                 acc, auc = model.evaluatePrediction(y_pred, y_test, treeid=99)    
                 print("Prediction: ", acc, auc)

@@ -14,17 +14,6 @@ from sklearn import metrics
 from federated_xgboost.XGBoostCommon import XgboostLearningParam, compute_splitting_score, SplittingInfo, FedDirRequestInfo, FedDirResponseInfo, PARTY_ID
 
 class MSG_ID:
-    MASKED_GH = 99
-    RAW_SPLITTING_MATRIX = 98
-    OPTIMAL_SPLITTING_INFO = 97
-
-    REQUEST_DIRECTION = 96
-    RESPONSE_DIRECTION = 95
-    OPTIMAL_SPLITTING_SELECTION = 94
-    INIT_INFERENCE_SIG = 89
-    ABORT_INFERENCE_SIG = 90
-    ABORT_BOOSTING_SIG = 88
-
     TREE_UPDATE = 69
     RESPONSE_GRADIENTS = 70
 
@@ -72,42 +61,53 @@ class H_FLXGBoostClassifierBase():
         # server creates first tree
         
         nprocs = comm.Get_size()
-        if rank == PARTY_ID.SERVER: 
-            newTreeGain = 0
-            loss = self.trees[0].learningParam.LOSS_FUNC.diff(y, y_pred)
-            print("nTreeTotal", self.nTree,"Loss", abs(loss), "Tree Gain", newTreeGain)
-            logger.warning("Boosting, TreeID: %d, Loss: %f, Gain: %f", -1, abs(loss), abs(newTreeGain))
         """
         boosting PAX
         """
         # Start federated boosting
         tStartBoost = self.excTimeLogger.log_start_boosting()
-        for i in range(self.nTree): 
+        for i in range(-1, self.nTree):
             tStartTree = TimeLogger.tic()            
 
             if rank == PARTY_ID.SERVER:
+                print(f"busy with tree {i} out of {self.nTree} so {(i*100/self.nTree)}% done")
                 # server does prediction on send tree -> get predictions/gradients -> create new tree
-                for partner in range(1, nprocs): # send trees to participants
-                    comm.send(self.trees[i], dest=partner, tag=MSG_ID.TREE_UPDATE)
-
+                if i >= 1:
+                    for partner in range(1, nprocs): # don't send first tree
+                        comm.send(self.trees[i-1], dest=partner, tag=MSG_ID.TREE_UPDATE)
+                
                 gradientsandall = {}
+                UnionGradients = np.array([])
+                UnionHessians  = np.array([])
+
                 for partner in range(1, nprocs): # recieve their computed gradients, hessians and others
                     gradientsandall[partner] = comm.recv(source=partner, tag=MSG_ID.RESPONSE_GRADIENTS)
-
+                    UnionGradients = np.hstack((UnionGradients, gradientsandall[partner][0].squeeze()))
+                    UnionHessians  = np.hstack((UnionHessians, gradientsandall[partner][1].squeeze())) 
+                    
                 pass # union of gradients
                 
+                dataFit = QuantiledDataBase(self.dataBase)
                 pass # create new tree
-                self.trees[i].fit(database, gradients, hessians)
+                self.trees[i].fit(dataFit, UnionGradients, UnionHessians)
 
                 self.excTimeLogger.log_dt_fit(tStartTree, treeID=i) # Log the executed time
                 
             else: # other participants
-                tree: H_FLPlainXGBoostTree = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.TREE_UPDATE)
-                tree.predict(orgData)
+                if i >= 0: # else we take y_pred from above 
+                    tree: H_FLPlainXGBoostTree = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.TREE_UPDATE)
+                    self.trees[i] = tree # update your trees
+                    y_pred = tree.predict(orgData)
                 dataFit = QuantiledDataBase(self.dataBase)
-                tree.get_gradients_hessians(y, y_pred, dataFit)
+                tree.get_gradients_hessians(y.squeeze(), y_pred.squeeze(), dataFit)
                 g = dataFit.gradVec
                 h = dataFit.hessVec
+                # print(f"DEBUG g {g.shape}")
+                # print(f"DEBUG h {h.shape}")
+                # print(f"DEBUG labels {np.shape(self.label)}")
+                # print(f"DEBUG y_pred = {y_pred.shape}")
+                # print(f"DEBUG yshape = {y.shape}")
+
 
                 comm.send((g,h), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
@@ -139,12 +139,17 @@ class H_FLXGBoostClassifierBase():
         data_num = X.shape[0]
         # Make predictions
         testDataBase = DataBase.data_matrix_to_database(X, fName)
-        for tree in self.trees:
+        
+        for treeID, tree in enumerate(self.trees):
             # Estimate gradient and update prediction
-            update_pred = tree.fed_predict(testDataBase)
+            logger.warning(f"PREDICTION id {treeID}")
+            b = FLVisNode(tree.root)
+            b.display(treeID)
+
+            update_pred = tree.predict(testDataBase)
             if y_pred is None:
                 y_pred = np.zeros_like(update_pred).reshape(data_num, -1)
-            if rank == 1:
+            if rank == 0: # hier gaat ie fout
                 update_pred = np.reshape(update_pred, (data_num, 1))
                 y_pred += update_pred
         return y_pred
@@ -176,8 +181,10 @@ class H_FLPlainXGBoostTree():
         # Compute the gradients and hessians
         if rank != PARTY_ID.SERVER:
             G = np.array(self.learningParam.LOSS_FUNC.gradient(y, yPred)).reshape(-1)
+            # print(f"DEBUG: {G.shape}")
             #G = G/ np.linalg.norm(G)
             H = np.array(self.learningParam.LOSS_FUNC.hess(y, yPred)).reshape(-1)
+            # print(f"DEBUG: {H.shape}")
             logger.debug("Computed Gradients and Hessians ")
             logger.debug("G {}".format(' '.join(map(str, G))))
             logger.debug("H {}".format(' '.join(map(str, H))))
@@ -190,10 +197,32 @@ class H_FLPlainXGBoostTree():
             score, maxScore, bestSplitId = compute_splitting_score(privateSM, qDataBase.gradVec, qDataBase.hessVec, XgboostLearningParam.LAMBDA, XgboostLearningParam.GAMMA)
             if(maxScore > 0):
                 sInfo.isValid = True
-                sInfo.bestSplitParty = PARTY_ID.ACTIVE_PARTY
+                sInfo.bestSplitParty = 0
                 sInfo.selectedCandidate = bestSplitId
                 sInfo.bestSplitScore = maxScore
         sInfo.log()
+        
+        if (sInfo.isValid):
+            #print(rank, sInfo.get_str_split_info())
+            sInfo = self.fed_finalize_optimal_finding(sInfo, qDataBase, privateSM)
+
+        return sInfo
+
+    def fed_finalize_optimal_finding(self, sInfo: SplittingInfo, qDataBase: QuantiledDataBase, privateSM = np.array([])):
+        # Set the optimal split as the owner ID of the current tree node
+        # If the selected party is me
+        # TODO: Considers implement this generic --> direct in the grow method as post processing?
+        if(rank == sInfo.bestSplitParty):
+            sInfo.bestSplittingVector = privateSM[sInfo.selectedCandidate,:]
+            feature, value = qDataBase.find_fId_and_scId(sInfo.bestSplittingVector)
+                
+            updateSInfo = deepcopy(sInfo)
+            updateSInfo.bestSplittingVector = privateSM[sInfo.selectedCandidate,:]
+
+            # Only the selected rank has these information so it saves for itself
+            sInfo.featureName = feature
+            sInfo.splitValue = value
+
         return sInfo
 
     def grow(self, qDataBase: QuantiledDataBase, depth, NodeDirection = TreeNodeType.ROOT, currentNode : FLTreeNode = None):
@@ -204,7 +233,7 @@ class H_FLPlainXGBoostTree():
         currentNode.FID = self.nNode
         self.nNode += 1
         sInfo = self.optimal_split_finding(qDataBase) 
-        sInfo.log()
+        # sInfo.log()
         currentNode.set_splitting_info(sInfo)
         if(sInfo.isValid):
             maxDepth = XgboostLearningParam.MAX_DEPTH
@@ -220,8 +249,8 @@ class H_FLPlainXGBoostTree():
                 # grow recursively
                 currentNode.leftBranch = FLTreeNode()
                 currentNode.rightBranch = FLTreeNode()
-                self.fed_grow(lD, depth,NodeDirection = TreeNodeType.LEFT, currentNode=currentNode.leftBranch)
-                self.fed_grow(rD, depth, NodeDirection = TreeNodeType.RIGHT, currentNode=currentNode.rightBranch)
+                self.grow(lD, depth,NodeDirection = TreeNodeType.LEFT, currentNode=currentNode.leftBranch)
+                self.grow(rD, depth, NodeDirection = TreeNodeType.RIGHT, currentNode=currentNode.rightBranch)
             
             else:
                 weight, score = FLTreeNode.compute_leaf_param(qDataBase.gradVec, qDataBase.hessVec, XgboostLearningParam.LAMBDA)
@@ -241,8 +270,10 @@ class H_FLPlainXGBoostTree():
             logger.info("Splitting candidate is not feasible. Terminate the tree growing and generate the leaf with weight Leaf Weight: %f", currentNode.weight)
 
 
-    def fit(self, qDataBase, g, h):
+    def fit(self, qDataBase: QuantiledDataBase, g, h):
         pass
+
+        qDataBase.appendGradientsHessian(g, h) # set the gradients and hessians
         rootNode = FLTreeNode()
         self.grow(qDataBase, depth=1, NodeDirection= TreeNodeType.ROOT, currentNode = rootNode)
         self.root = rootNode
@@ -252,6 +283,7 @@ class H_FLPlainXGBoostTree():
 
     def predict(self, database:DataBase):
         curNode = self.root
+        outputs = np.empty(database.nUsers, dtype=float)
 
         for userId in range(database.nUsers): # UserId unintuitively just means the different patients I guess
             while(not curNode.is_leaf()):
@@ -261,4 +293,5 @@ class H_FLPlainXGBoostTree():
                     curNode =curNode.leftBranch
                 elif(direction == Direction.RIGHT):
                     curNode = curNode.rightBranch
-        return curNode.weight
+            outputs[userId] = curNode.weight
+        return outputs

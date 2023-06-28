@@ -16,7 +16,7 @@ CONFIG = {
   "lambda": 10, # 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 5, 10 ###### CAI SO NAY NE
   "gamma": 0.5, # 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 5, 10  
   "MAX_DEPTH": 3,
-  "MAX_TREE": 3
+  "MAX_TREE": 30
 }
 
 class SIM_PARAM:
@@ -52,6 +52,7 @@ formatter = logging.Formatter('%(levelname)s - [%(filename)s:%(lineno)s - %(func
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 logger.setLevel(logging.WARNING)
+logger.setLevel(logging.DEBUG)
 
 
 np.set_printoptions(linewidth=np.inf)
