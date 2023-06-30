@@ -58,6 +58,7 @@ def test_purchase(model): # Author: Jaap Meerhof
     
     if rank == 1:
         y_pred = model.predict(X_test_A, fNameA)
+        print(f"y_pred={y_pred}")
         # print(model.predict_proba(X_test_A, fNameA))
         import xgboost as xgb
         xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="binary:logistic",
@@ -369,7 +370,7 @@ def main():
         XgboostLearningParam.N_TREES, XgboostLearningParam.MAX_DEPTH, XgboostLearningParam.LAMBDA, XgboostLearningParam.GAMMA)
         logger.warning("QuantileParameter, eps: %f, thres: %f", QuantileParam.epsilon, QuantileParam.thres_balance)
         # Dataset selection  
-        y_pred, y_test, model = test_purchase(model) # TODO DELETE AFTER TEST
+        # y_pred, y_test, model = test_purchase(model) # TODO DELETE AFTER TEST
           
         if rank != 0:
             if CONFIG["dataset"] == dataset[0]:
@@ -388,6 +389,8 @@ def main():
                 y_pred, y_test, model = test_purchase(model)
             if rank == PARTY_ID.ACTIVE_PARTY:
                 model.log_info()
+                import pickle
+                pickle.dump({"model":model, "y_pred":y_pred, "y_test":y_test}, open( "debugmain.p", "wb"))
                 acc, auc = model.evaluatePrediction(y_pred, y_test, treeid=99)    
                 print("Prediction: ", acc, auc)
     

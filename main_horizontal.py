@@ -33,11 +33,14 @@ def log_distribution(X_train, y_train, y_test):
 def test_purchase(model): # Author: Jaap Meerhof
     X_train, y_train, X_test, y_test, fName = get_purchase2()
     log_distribution(X_train, y_train, y_test)
-    # model.append_data(X_train, fName)
-    # model.append_label(y_train)
-    # quantile = QuantiledDataBase(model.dataBase)
+    model.append_data(X_train, fName)
+    model.append_label(y_train)
+    quantile = QuantiledDataBase(model.dataBase)
+
+    pass 
     # splits = quantile.get_merged_splitting_matrix()
     
+
 
     X_train_A, X_test_A = X_train[:5000, :], X_test[:5000, :]
     y_train_A = y_train[:5000]
@@ -46,14 +49,20 @@ def test_purchase(model): # Author: Jaap Meerhof
     y_train_B = y_train[5000:]
 
     if rank == 1:
+        quantile = quantile.splitupHorizontal(0, 5_000)
+        model.set_qDataBase(quantile)
         model.append_data(X_train_A, fName)
         model.append_label(y_train_A)
     elif rank == 2:
         #print("Test", len(X_train_B), len(X_train_B[0]), len(y_train), len(y_train[0]))
         model.append_data(X_train_B, fName)
         model.append_label(y_train_B)
+        quantile = quantile.splitupHorizontal(5_000, 10_000)
+        model.set_qDataBase(quantile)
     elif rank == 0: #server
         model.append_data(X_train, fName)
+        model.set_qDataBase(quantile)
+
 
     # model.print_info()
     model.boost()
@@ -73,8 +82,8 @@ def test_purchase(model): # Author: Jaap Meerhof
         from sklearn.metrics import accuracy_score
         y_pred_xgb = xgboostmodel.predict(X_test)
         print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
-
-    y_pred_org = y_pred.copy()    
+        print(y_pred)
+    y_pred_org = y_pred.copy()
 
     return y_pred_org, y_test, model
 
@@ -389,6 +398,10 @@ def main():
                 y_pred, y_test, model = test_purchase(model)
             if rank == PARTY_ID.SERVER:
                 model.log_info()
+                import pickle
+                pickle.dump({"model":model, "y_pred":y_pred, "y_test":y_test}, open( "debug.p", "wb"))
+            # target_model = pickle.load(open(TARGET_MODEL_NAME, "rb"))
+
                 acc, auc = model.evaluatePrediction(y_pred, y_test, treeid=99)    
                 print("Prediction: ", acc, auc)
     

@@ -33,6 +33,9 @@ class H_FLXGBoostClassifierBase():
 
     def assign_tree():
         raise NotImplementedError
+    
+    def set_qDataBase(self, qDataBase):
+        self.qDataBase = qDataBase
 
     def append_data(self, dataTable, fName = None):
         """
@@ -66,49 +69,56 @@ class H_FLXGBoostClassifierBase():
         """
         # Start federated boosting
         tStartBoost = self.excTimeLogger.log_start_boosting()
-        for i in range(-1, self.nTree):
+        for i in range(0, self.nTree):
             tStartTree = TimeLogger.tic()            
 
             if rank == PARTY_ID.SERVER:
-                print(f"busy with tree {i} out of {self.nTree} so {(i*100/self.nTree)}% done")
+                print(f"busy with tree {i} out of {self.nTree} so {(i*100/self.nTree):.2f}% done")
                 # server does prediction on send tree -> get predictions/gradients -> create new tree
-                if i >= 1:
+                
+                if i != self.nTree-1:
                     for partner in range(1, nprocs): # don't send first tree
-                        comm.send(self.trees[i-1], dest=partner, tag=MSG_ID.TREE_UPDATE)
-                
-                gradientsandall = {}
-                UnionGradients = np.array([])
-                UnionHessians  = np.array([])
-
-                for partner in range(1, nprocs): # recieve their computed gradients, hessians and others
-                    gradientsandall[partner] = comm.recv(source=partner, tag=MSG_ID.RESPONSE_GRADIENTS)
-                    UnionGradients = np.hstack((UnionGradients, gradientsandall[partner][0].squeeze()))
-                    UnionHessians  = np.hstack((UnionHessians, gradientsandall[partner][1].squeeze())) 
+                        comm.send(self.trees[i], dest=partner, tag=MSG_ID.TREE_UPDATE)
                     
-                pass # union of gradients
-                
-                dataFit = QuantiledDataBase(self.dataBase)
-                pass # create new tree
-                self.trees[i].fit(dataFit, UnionGradients, UnionHessians)
+                    gradientsandall = {}
+                    UnionGradients = np.array([])
+                    UnionHessians  = np.array([])
 
+                    for partner in range(1, nprocs): # recieve their computed gradients, hessians and others
+                        gradientsandall[partner] = comm.recv(source=partner, tag=MSG_ID.RESPONSE_GRADIENTS)
+                        UnionGradients = np.hstack((UnionGradients, gradientsandall[partner][0].squeeze()))
+                        UnionHessians  = np.hstack((UnionHessians, gradientsandall[partner][1].squeeze())) 
+                        
+                    pass # union of gradients
+                    
+                    # dataFit = QuantiledDataBase(self.dataBase)
+                    dataFit = self.qDataBase
+                    pass # create new tree
+                    self.trees[i+1].fit(dataFit, UnionGradients, UnionHessians)
+        
+                else: # send last tree
+                    for partner in range(1, nprocs): # don't send first tree
+                        comm.send(self.trees[i], dest=partner, tag=MSG_ID.TREE_UPDATE)
                 self.excTimeLogger.log_dt_fit(tStartTree, treeID=i) # Log the executed time
                 
-            else: # other participants
-                if i >= 0: # else we take y_pred from above 
+            else: # other participants #this code should be illegal
+                if i >= 0 and i < self.nTree - 1: # else we take y_pred from above 
                     tree: H_FLPlainXGBoostTree = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.TREE_UPDATE)
                     self.trees[i] = tree # update your trees
-                    y_pred = tree.predict(orgData)
-                dataFit = QuantiledDataBase(self.dataBase)
+                    update_pred = tree.predict(orgData)
+                    y_pred = y_pred.squeeze()
+                    y_pred += update_pred
+                elif i == self.nTree -1:
+                    tree: H_FLPlainXGBoostTree = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.TREE_UPDATE)
+                    self.trees[i] = tree # update your trees
+                    # Get last tree but don't send gradients
+                    break
+                    
+                # dataFit = QuantiledDataBase(self.dataBase)
+                dataFit = self.qDataBase
                 tree.get_gradients_hessians(y.squeeze(), y_pred.squeeze(), dataFit)
                 g = dataFit.gradVec
                 h = dataFit.hessVec
-                # print(f"DEBUG g {g.shape}")
-                # print(f"DEBUG h {h.shape}")
-                # print(f"DEBUG labels {np.shape(self.label)}")
-                # print(f"DEBUG y_pred = {y_pred.shape}")
-                # print(f"DEBUG yshape = {y.shape}")
-
-
                 comm.send((g,h), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
         print("Received the abort boosting flag from AP")
@@ -204,11 +214,11 @@ class H_FLPlainXGBoostTree():
         
         if (sInfo.isValid):
             #print(rank, sInfo.get_str_split_info())
-            sInfo = self.fed_finalize_optimal_finding(sInfo, qDataBase, privateSM)
+            sInfo = self.finalize_optimal_finding(sInfo, qDataBase, privateSM)
 
         return sInfo
 
-    def fed_finalize_optimal_finding(self, sInfo: SplittingInfo, qDataBase: QuantiledDataBase, privateSM = np.array([])):
+    def finalize_optimal_finding(self, sInfo: SplittingInfo, qDataBase: QuantiledDataBase, privateSM = np.array([])):
         # Set the optimal split as the owner ID of the current tree node
         # If the selected party is me
         # TODO: Considers implement this generic --> direct in the grow method as post processing?
@@ -286,6 +296,7 @@ class H_FLPlainXGBoostTree():
         outputs = np.empty(database.nUsers, dtype=float)
 
         for userId in range(database.nUsers): # UserId unintuitively just means the different patients I guess
+            curNode = self.root
             while(not curNode.is_leaf()):
                 direction = \
                     (database.featureDict[curNode.splittingInfo.featureName].data[userId] > curNode.splittingInfo.splitValue)

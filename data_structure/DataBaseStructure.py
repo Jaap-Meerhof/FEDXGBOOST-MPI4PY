@@ -18,11 +18,14 @@ class FeatureData:
         self.data = np.array(dataVector, dtype=np.float32)
 
 class QuantiledFeature(FeatureData):
-  
-    def __init__(self, name, dataVector) -> None:
+    
+    def __init__(self, name, dataVector, splittingMatrix = None, splittingCandidates = None) -> None:
         super().__init__(name, dataVector)
-        self.splittingMatrix, self.splittingCandidates = QuantiledFeature.quantile(self.data, QuantileParam)     
-        
+        if (splittingMatrix is None) & (splittingCandidates is None):
+            self.splittingMatrix, self.splittingCandidates = QuantiledFeature.quantile(self.data, QuantileParam)     
+        else:
+            self.splittingMatrix, self.splittingCandidates = splittingMatrix, splittingCandidates
+
     def quantile(fData: FeatureData, param: QuantileParam):
         splittingMatrix = []
         splittingCandidates = []
@@ -174,7 +177,23 @@ class QuantiledDataBase(DataBase):
 
         self.gradVec = []
         self.hessVec = []
+    
+    def splitupHorizontal(self, start:int, end:int):
+        newQDatabase = QuantiledDataBase(DataBase())
+        newQDatabase.nUsers = end - start
+        newQDatabase.featureDict = {}
+        # self.splittingMatrix, self.splittingCandidates = QuantiledFeature.quantile(self.data, QuantileParam)     
 
+        for featurestring, qFeature in self.featureDict.items():
+            newdata = qFeature.data[start:end]
+            if qFeature.splittingCandidates.size != 0:
+                newsM = qFeature.splittingMatrix[:, start:end]
+                newQDatabase.featureDict[featurestring] = QuantiledFeature(featurestring, newdata, newsM, qFeature.splittingCandidates)
+            else: # empty
+                newsM = qFeature.splittingMatrix
+                newQDatabase.featureDict[featurestring] = QuantiledFeature(featurestring, newdata, newsM, qFeature.splittingCandidates) 
+        return newQDatabase
+    
     def get_info_string(self):
         Str = "nUsers: %d nFeature: %d \n" % (self.nUsers, len(self.featureDict.items()))
         for key, feature in self.featureDict.items():
@@ -209,10 +228,10 @@ class QuantiledDataBase(DataBase):
         logger.error("My splitting matrix: %s", str(self.get_merged_splitting_matrix()))
         assert(False)
 
-
+    
     def partition(self, splittingVector):
         """
-        Partition the database to two left and right databases according to the spliitng vector
+        Partition the database to two left and right databases according to the splitting vector
         The returned QuantiledDatabase  perform the quantile (proposal of the splitting matrices within its constructor)
         """
         # assert Numel of splitting vector and the amount of users
