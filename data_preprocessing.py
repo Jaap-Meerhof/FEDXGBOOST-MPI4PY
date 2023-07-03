@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 from config import SIM_PARAM, rank, logger
-
+from sklearn.preprocessing import OneHotEncoder
 def get_purchase2(): # Author Jaap Meerhof
     import pickle
     DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
@@ -10,6 +10,8 @@ def get_purchase2(): # Author Jaap Meerhof
     X = pickle.load(open(DATA_PATH+"purchase_100_features.p", "rb"))
     y = pickle.load(open(DATA_PATH+"purchase_100_2_labels.p", "rb"))
     y = y.reshape((y.shape[0], 1))
+    
+
     from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=10_000, test_size=10_000, random_state=69)
     fName = []
@@ -18,6 +20,25 @@ def get_purchase2(): # Author Jaap Meerhof
     return X_train, y_train, X_test, y_test, fName
 # get_purchase2()
 
+def get_purchase10(): # Author Jaap Meerhof
+    import pickle
+    DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    # DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    X = pickle.load(open(DATA_PATH+"purchase_100_features.p", "rb"))
+    y = pickle.load(open(DATA_PATH+"purchase_100_10_labels.p", "rb"))
+    y = y.reshape(-1, 1)
+
+    from sklearn.preprocessing import OneHotEncoder
+    encoder = OneHotEncoder()
+    encoder.fit(y)
+    y = encoder.transform(y).toarray()
+
+    from sklearn.model_selection import train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=10_000, test_size=10_000, random_state=69)
+    fName = []
+    for i in range(600):
+        fName.append(str(i))
+    return X_train, y_train, X_test, y_test, fName
 
 def get_purchase(amount_labels): # Author Jaap Meerhof
     import urllib.request
