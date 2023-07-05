@@ -9,7 +9,7 @@ from data_structure.DataBaseStructure import QuantileParam
 from federated_xgboost.FLTreeHMulti import H_PlainFedXGBoost # USE HMULTI
 from federated_xgboost.FedXGBoostTree import FEDXGBOOST_PARAMETER, FedXGBoostClassifier
 from config import rank, logger, comm
-from federated_xgboost.SecureBoostTree import PseudoSecureBoostClassifier, SecureBoostClassifier
+# from federated_xgboost.SecureBoostTree import PseudoSecureBoostClassifier, SecureBoostClassifier
 
 from data_preprocessing import *
 from federated_xgboost.XGBoostCommon import XgboostLearningParam, PARTY_ID 
@@ -369,10 +369,11 @@ def main():
         elif CONFIG["model"] == "FedXGBoost":
             model = FedXGBoostClassifier(XgboostLearningParam.N_TREES)
         elif CONFIG["model"] == "SecureBoost": 
-            model = SecureBoostClassifier(XgboostLearningParam.N_TREES)
+            pass
+            # model = SecureBoostClassifier(XgboostLearningParam.N_TREES)
         elif CONFIG["model"] == "PseudoSecureBoost":
-            model = PseudoSecureBoostClassifier(XgboostLearningParam.N_TREES)
-
+            # model = PseudoSecureBoostClassifier(XgboostLearningParam.N_TREES)
+            pass
 
         # Log the test case and the parameters
         logger.warning("TestInfo, {0}".format(CONFIG))

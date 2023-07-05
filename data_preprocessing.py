@@ -23,6 +23,7 @@ def get_purchase2(): # Author Jaap Meerhof
 def get_purchase10(): # Author Jaap Meerhof
     import pickle
     DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    DATA_PATH = "/data/BioGrid/meerhofj/acquire-valued-shoppers-challenge/"
     # DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
     X = pickle.load(open(DATA_PATH+"purchase_100_features.p", "rb"))
     y = pickle.load(open(DATA_PATH+"purchase_100_10_labels.p", "rb"))
