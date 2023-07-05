@@ -14,7 +14,7 @@ from config import rank, logger, comm
 from data_preprocessing import *
 from federated_xgboost.XGBoostCommon import XgboostLearningParam, PARTY_ID 
 
-from memory_profiler import profile
+# from memory_profiler import profile
 from data_structure.DataBaseStructure import * # TMP for testing
 
 
@@ -30,14 +30,20 @@ def log_distribution(X_train, y_train, y_test):
     logger.warning("DataDistribution, nTrain: %d, zeroRate: %f, nTest: %d, ratioTest: %f, nFeature: %d", 
     nTrain, rTrain, nTest, rTest, X_train.shape[1])
 
-@profile
+# @profile
 def test_purchase(model): # Author: Jaap Meerhof
     X_train, y_train, X_test, y_test, fName = get_purchase10()
     log_distribution(X_train, y_train, y_test)
     model.append_data(X_train, fName)
     model.append_label(y_train)
     quantile = QuantiledDataBase(model.dataBase)
-
+    # import xgboost as xgb
+    # xgboostmodel = xgb.XGBClassifier(max_depth=4, objective="multi:softmax",
+    #                     learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10, num_class=10)
+    # xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
+    # from sklearn.metrics import accuracy_score
+    # y_pred_xgb = xgboostmodel.predict(X_test)
+    # print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
     pass 
     # splits = quantile.get_merged_splitting_matrix()
     
@@ -77,7 +83,7 @@ def test_purchase(model): # Author: Jaap Meerhof
         pass
         y_pred = model.predict(X_test, fName, initprobability)
         import xgboost as xgb
-        xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="binary:logistic",
+        xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="multi:softmax",
                             learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10)
         xgboostmodel.fit(X_train, y_train)
         from sklearn.metrics import accuracy_score
@@ -92,40 +98,52 @@ def test_purchase(model): # Author: Jaap Meerhof
 def test_texas(model): # Author: Jaap Meerhof
     X_train, y_train, X_test, y_test, fName = get_texas()
     log_distribution(X_train, y_train, y_test)
-
-    X_train_A, X_test_A = X_train[:, 0:5], X_test[:, 0:5]
-    fNameA = fName[0:5]
+    model.append_data(X_train, fName)
+    model.append_label(y_train)
+    quantile = QuantiledDataBase(model.dataBase)
+    initprobability = (sum(y_train))/ len(y_train)
+    splitData = len(X_train)/2
+    X_train_A, X_test_A = X_train[:splitData, :], X_test[:splitData, :]
+    fNameA = fName[:]
     
-    X_train_B, X_test_B = X_train[:, 5:11], X_test[:, 5:11]
-    fNameB = fName[5:11]
+    X_train_B, X_test_B = X_train[:splitData, :], X_test[:splitData, :]
+    fNameB = fName[:]
 
     if rank == 1:
+        quantile = quantile.splitupHorizontal(0, splitData)
+        model.set_qDataBase(quantile)
         model.append_data(X_train_A, fNameA)
         model.append_label(y_train)
     elif rank == 2:
+        quantile = quantile.splitupHorizontal(splitData, len(X_train))
+        model.set_qDataBase(quantile)
         #print("Test", len(X_train_B), len(X_train_B[0]), len(y_train), len(y_train[0]))
         model.append_data(X_train_B, fNameB)
         model.append_label(np.zeros_like(y_train.shape))
+    elif rank == 0: # server
+        model.append_data(X_train, fName)
+        model.set_qDataBase(quantile)
 
-    model.print_info()
-    model.boost()
+    # model.print_info()
+    model.boost(initprobability)
     
     if rank == 1:
-        y_pred = model.predict(X_test_A, fNameA)
+        y_pred = model.predict(X_test_A, fNameA, initprobability)
     elif rank == 2:
-        y_pred = model.predict(X_test_B, fNameB)
+        y_pred = model.predict(X_test_B, fNameB, initprobability)
     else:
-        model.predict(np.zeros_like(X_test_A))
+        pass
+        y_pred = model.predict(X_test, fName, initprobability)
+        import xgboost as xgb
+        xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="multi:softmax",
+                            learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10)
+        xgboostmodel.fit(X_train, y_train)
+        from sklearn.metrics import accuracy_score
+        y_pred_xgb = xgboostmodel.predict(X_test)
+        print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
+        print(y_pred)
 
     y_pred_org = y_pred.copy()
-
-    import xgboost as xgb
-    xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="binary:logistic",
-                           learning_rate=0.3, n_estimators=3, gamma=0.5, reg_alpha=1, reg_lambda=10)
-    xgboostmodel.fit(X_train, y_train)
-    from sklearn.metrics import accuracy_score
-    y_pred_xgb = xgboostmodel.predict(X_test)
-    print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
 
     return y_pred_org, y_test, model
     

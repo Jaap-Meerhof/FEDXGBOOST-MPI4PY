@@ -51,6 +51,9 @@ class SplittingInfo:
         self.featureName = None
         self.splitValue = 0.0
 
+    def delSplittinVector(self): # performance attempt
+        self.bestSplittingVector = None
+
     def log(self):
         logger.debug("Best Splitting Score: L = %.2f, Selected Party %s",\
                 self.bestSplitScore, str(self.bestSplitParty))

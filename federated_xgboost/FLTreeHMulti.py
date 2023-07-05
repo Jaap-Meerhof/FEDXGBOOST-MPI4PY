@@ -13,6 +13,7 @@ from copy import deepcopy
 from sklearn import metrics
 from federated_xgboost.XGBoostCommon import XgboostLearningParam, compute_splitting_score, SplittingInfo, FedDirRequestInfo, FedDirResponseInfo, PARTY_ID
 from concurrent.futures import ThreadPoolExecutor, as_completed
+# from memory_profiler import profile
 
 class MSG_ID:
     TREE_UPDATE = 69
@@ -254,16 +255,16 @@ class H_FLPlainXGBoostTree():
         if(rank == sInfo.bestSplitParty):
             sInfo.bestSplittingVector = privateSM[sInfo.selectedCandidate,:]
             feature, value = qDataBase.find_fId_and_scId(sInfo.bestSplittingVector)
-                
-            updateSInfo = deepcopy(sInfo)
-            updateSInfo.bestSplittingVector = privateSM[sInfo.selectedCandidate,:]
+            
+            # updateSInfo = deepcopy(sInfo)
+            # updateSInfo.bestSplittingVector = privateSM[sInfo.selectedCandidate,:]
 
             # Only the selected rank has these information so it saves for itself
             sInfo.featureName = feature
             sInfo.splitValue = value
 
         return sInfo
-
+    # @profile
     def grow(self, qDataBase: QuantiledDataBase, depth, NodeDirection = TreeNodeType.ROOT, currentNode : FLTreeNode = None):
         logger.info("Tree is growing depth-wise. Current depth: {}".format(depth) + " Node's type: {}".format(NodeDirection))
         currentNode.nUsers = qDataBase.nUsers
@@ -280,6 +281,7 @@ class H_FLPlainXGBoostTree():
             if (depth < maxDepth) and (sInfo.bestSplitScore > 0):
                 depth += 1
                 lD, rD = qDataBase.partition(sInfo.bestSplittingVector)
+                sInfo.delSplittinVector()
                 logger.info("Splitting the database according to the best splitting vector.")
                 logger.debug("\nOriginal database: %s", qDataBase.get_info_string())
                 logger.debug("\nLeft splitted database: %s", lD.get_info_string())
