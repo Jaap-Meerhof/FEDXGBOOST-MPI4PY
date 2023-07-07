@@ -167,7 +167,14 @@ class H_FLXGBoostClassifierBase():
         
 
         return acc, auc
+    
+    
+    def predict_proba(self, X, fName, initProbability):
+        pass
 
+    def predict1(self, X, fName, initProbability):
+        pass
+    
     def predict(self, X, fName = None, initProbability = None):
         # y_pred = [None for n in range(self.nClasses)]
         y_pred = np.tile(initProbability, (len(X) , 1)) #(Nclasses, xrows)
