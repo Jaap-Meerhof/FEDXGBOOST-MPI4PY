@@ -9,7 +9,7 @@ import random
 
 modelArr = ["PlainXGBoost", "FedXGBoost", "SecureBoost", "PseudoSecureBoost", "FedXGBoost-Nys"]
 dataset = ["Iris", "GiveMeCredits", "Adult", "DefaultCredits", "AugData", "texas", "purchase"]
-
+#           0         1               2           3             4           5       6
 CONFIG = {
   "model": modelArr[0],
   "dataset": dataset[6],

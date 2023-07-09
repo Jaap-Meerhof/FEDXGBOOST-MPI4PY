@@ -20,13 +20,40 @@ def get_purchase2(): # Author Jaap Meerhof
     return X_train, y_train, X_test, y_test, fName
 # get_purchase2()
 
+def check_mul_paths(POSSIBLE_PATHS, filename):
+    import pickle
+    for path in POSSIBLE_PATHS:
+        try:
+            with open(path + filename, 'rb') as file:
+                obj = pickle.load(file)
+                return obj
+        except FileNotFoundError:
+            continue
+    raise FileNotFoundError("File not found in all paths :(")
+
+def getMNIST():
+    from keras.datasets import mnist
+    (train_X, train_y), (test_X, test_y) = mnist.load_data()
+    X = np.vstack((train_X, test_X))
+    y = np.vstack((train_y, test_y))
+    X = np.array(X).reshape(X.shape[0], 28*28)
+    y = np.array(y)
+    # TODO make all others not use one-hot-encoding
+    return X, y, None
+
 def get_purchase10(): # Author Jaap Meerhof
     import pickle
     # DATA_PATH = "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
     DATA_PATH = "/data/BioGrid/meerhofj/acquire-valued-shoppers-challenge/"
-    DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
-    X = pickle.load(open(DATA_PATH+"purchase_100_features.p", "rb"))
-    y = pickle.load(open(DATA_PATH+"purchase_100_10_labels.p", "rb"))
+    # DATA_PATH = "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"
+    POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/acquire-valued-shoppers-challenge/", \
+                      "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/", \
+                      "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/acquire-valued-shoppers-challenge/"]
+    X = check_mul_paths(POSSIBLE_PATHS, "purchase_100_features.p")
+    y = check_mul_paths(POSSIBLE_PATHS, "purchase_100_10_labels.p")
+
+    # X = pickle.load(open(DATA_PATH+"purchase_100_features.p", "rb"))
+    # y = pickle.load(open(DATA_PATH+"purchase_100_10_labels.p", "rb"))
     y = y.reshape(-1, 1)
 
     from sklearn.preprocessing import OneHotEncoder

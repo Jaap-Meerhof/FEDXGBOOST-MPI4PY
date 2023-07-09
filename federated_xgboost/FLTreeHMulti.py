@@ -98,7 +98,7 @@ class H_FLXGBoostClassifierBase():
                         UnionGradients = np.hstack((UnionGradients, gradientsandall[partner][0].T))
                         UnionHessians  = np.hstack((UnionHessians, gradientsandall[partner][1].T)) 
                         
-                    pass # union of gradients
+                    pass # TODO take actual additions of gradients on 
                     
                     # dataFit = QuantiledDataBase(self.dataBase)
                     dataFit = self.qDataBase
@@ -148,7 +148,7 @@ class H_FLXGBoostClassifierBase():
         return loss
 
     def evaluatePrediction(self, y_pred, y, treeid = None):
-        y_pred = np.argmax(y_pred, axis=1)
+        # y_pred = np.argmax(y_pred, axis=1)
         print(y_pred[:10])
         print("---------")
         print(y[:10])
@@ -169,13 +169,23 @@ class H_FLXGBoostClassifierBase():
         return acc, auc
     
     
-    def predict_proba(self, X, fName, initProbability):
-        pass
+    def predict_proba(self, X, fName, initProbability): # returns probabilities of all classes
+        y_pred = self.predict(X, fName, initProbability) # returns weights
+        for rowid in range(np.shape(y_pred)[0]):
+            row = y_pred[rowid, :]
+            wmax = max(row)
+            wsum = 0
+            for y in row: wsum += np.exp(y-wmax)
+            y_pred[rowid, :] = np.exp(row-wmax) / wsum
+        return y_pred
 
-    def predict1(self, X, fName, initProbability):
-        pass
+
+
+    def predict(self, X, fName, initProbability): # returns class number
+        y_pred = self.predictweights(X, fName, initProbability) # get leaf node weights
+        return np.argmax(y_pred, axis=1)
     
-    def predict(self, X, fName = None, initProbability = None):
+    def predictweights(self, X, fName = None, initProbability = None): # returns weights
         # y_pred = [None for n in range(self.nClasses)]
         y_pred = np.tile(initProbability, (len(X) , 1)) #(Nclasses, xrows)
         data_num = X.shape[0]
