@@ -3,3 +3,4 @@ Log/
 *.code-workspace
 venv/
 debug*
+*-checkpoint.*
