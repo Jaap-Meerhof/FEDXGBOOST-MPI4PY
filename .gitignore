@@ -4,3 +4,4 @@ Log/
 venv/
 debug*
 *-checkpoint.*
+Database/

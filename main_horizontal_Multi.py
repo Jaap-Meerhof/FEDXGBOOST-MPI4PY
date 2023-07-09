@@ -31,6 +31,60 @@ def log_distribution(X_train, y_train, y_test):
     nTrain, rTrain, nTest, rTest, X_train.shape[1])
 
 # @profile
+
+def test_global(model, getDatabaseFunc):
+    X_train, y_train, X_test, y_test, fName = getDatabaseFunc()
+    log_distribution(X_train, y_train, y_test)
+    model.append_data(X_train, fName)
+    model.append_label(y_train)
+    quantile = QuantiledDataBase(model.dataBase)
+
+    initprobability = (sum(y_train))/len(y_train)
+
+    total_users = comm.Get_size() - 1
+    
+    total_lenght = len(X_train)
+    
+    elements_per_node = total_lenght//total_users
+
+    start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
+    start = start_end[rank][0]
+    end = start_end[rank][1]
+
+    X_train_my, X_test_my = X_train[start:end, :], X_test[start:end, :]
+    y_train_my = y_train[start:end]
+
+
+    # split up the database between the users
+    if rank == PARTY_ID.SERVER:
+        model.append_data(X_train, fName)
+        model.set_qDataBase(quantile)
+    else:
+        quantile = quantile.splitupHorizontal(0, 5_000)
+        model.set_qDataBase(quantile)
+        model.append_data(X_train_my, fName)
+        model.append_label(y_train_my)
+    
+    model.boost(initprobability)
+
+    if rank == PARTY_ID.SERVER:
+        y_pred = model.predict(X_test, fName, initprobability)
+        
+        import xgboost as xgb
+        xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="multi:softmax",
+                            learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10)
+        xgboostmodel.fit(X_train, y_train)
+        from sklearn.metrics import accuracy_score
+        y_pred_xgb = xgboostmodel.predict(X_test)
+        print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
+        print(y_pred)
+    else:
+        y_pred = None
+
+    y_pred_org = y_pred.copy()
+
+    return y_pred_org, y_test, model
+
 def test_purchase(model): # Author: Jaap Meerhof
     X_train, y_train, X_test, y_test, fName = get_purchase10()
     log_distribution(X_train, y_train, y_test)
