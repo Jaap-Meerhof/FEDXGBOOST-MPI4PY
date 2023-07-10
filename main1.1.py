@@ -28,7 +28,9 @@ def getPurchase(num):
         y = makeOneHot(y)
         
         from sklearn.model_selection import train_test_split
+        shadow_lenght = max(len(X), 30_000)
         X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=10_000, test_size=10_000, random_state=69)
+
         fName = []
         for i in range(600):
             fName.append(str(i))
