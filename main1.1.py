@@ -168,13 +168,16 @@ if rank != -1:
 
         acc, auc = model.evaluatePrediction(y_pred, y_test, treeid=99)    
         print("Prediction: ", acc, auc)
-        from membership.MembershipInference import Membership_Inference, prettyPlot
+        from membership.MembershipInference import membership_inference
         from copy import deepcopy
         
         shadow_X = X.deepcopy()
         
         import xgboost as xgb
-        shadowmodel = shadow_model = xgb.XGBClassifier(max_depth=MAX_DEPTH, tree_method='approx', objective="multi:softmax", # "multi:softmax"
-                            learning_rate=ETA, n_estimators=N_TREES, gamma=GAMMA, reg_alpha=REG_ALPHA, reg_lambda=REG_LAMBDA, min_child_weight = MIN_CHILD_WEIGHT) 
+        shadowmodel = shadow_model = xgb.XGBClassifier(max_depth=CONFIG["MAX_TREE"], tree_method='approx', objective="multi:softmax", # "multi:softmax"
+                            learning_rate=0.3, n_estimators=CONFIG["MAX_TREE"], gamma=CONFIG["gamma"], reg_alpha=0, reg_lambda=CONFIG["lambda"], min_child_weight = 1) 
         targetmodel = attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=8, n_estimators=50, learning_rate=0.3) 
-        Membership_Inference(X, y, shadow_X, model, shadowmodel, targetmodel)
+        
+        data = membership_inference(X, y, shadow_dataset, model, shadow_model, attack_model)
+        from membership.plotting import prettyPlot
+        prettyPlot(data)
