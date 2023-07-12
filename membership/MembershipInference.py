@@ -9,8 +9,8 @@ def split_shadowfake(shadow_fake):
     shadow_fake = (shadow_fake[0][2*split:, :], shadow_fake[1][2*split:]) # splits the datset
     return other_fake, test_fake, shadow_fake
 
-def membership_inference(X, y, shadow_dataset, target_model, shadow_model, attack_model):
-    other_fake, test_fake, shadow_fake = split_shadowfake(shadow_dataset)
+def membership_inference(X, y, X_shadow, y_shadow, target_model, shadow_model, attack_model):
+    other_fake, test_fake, shadow_fake = split_shadowfake((X_shadow, y_shadow))
     shadow_model.fit(shadow_fake[0], shadow_fake[1])
     y_pred = shadow_model.predict(test_fake[0])
     print("> shadow accuracy: %.2f" % (accuracy_score(test_fake[1], y_pred)))

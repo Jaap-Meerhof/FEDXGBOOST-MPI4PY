@@ -1,6 +1,11 @@
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
+
+from config import CONFIG, dataset, rank, logger, comm
+import numpy as np
+
+
 def check_mul_paths(filename):
     import pickle
     for path in POSSIBLE_PATHS:
@@ -19,27 +24,67 @@ def makeOneHot(y):
     y = encoder.transform(y).toarray()
     return y
 
+def take_and_remove_items(arr, size): #sshoutout to Chat-gpt
+    indices = np.random.choice(len(arr), size,replace=False )
+    selected_items = np.take(arr, indices, axis=0)
+    arr = np.delete(arr, indices, axis=0)
+    return selected_items, arr
+
 def getPurchase(num):
     #first try local
+    # 
+    logger.warning(f"getting purchase {num} dataset!")
+
+    train_size = 10_000
+    test_size = 10_000
+    random_state = 69
+    shadow_size = 30_000 # take in mind that this shadow_set is devided in 3 sets
+
     def returnfunc():
         X = check_mul_paths('acquire-valued-shoppers-challenge/' + 'purchase_100_features.p')
         y = check_mul_paths('acquire-valued-shoppers-challenge/' + 'purchase_100_' + str(num) + '_labels.p')
+        total_size = shadow_size + test_size + train_size
+        if not total_size < len(X) : raise Exception(f"your don't have enough data for these settings. your original X is of size {len(X)} ")
+        
+        X_shadow, X = take_and_remove_items(X, shadow_size)
         y = y.reshape(-1, 1)
         y = makeOneHot(y)
-        
+        y_shadow, y = take_and_remove_items(y, shadow_size)       
         from sklearn.model_selection import train_test_split
-        shadow_lenght = max(len(X), 30_000)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=10_000, test_size=10_000, random_state=69)
-
+        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
+        
         fName = []
         for i in range(600):
             fName.append(str(i))
-        return X_train, y_train, X_test, y_test, fName
+        logger.warning(f"got purchase {num} dataset!")
+
+        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
         
     return returnfunc
 
 def getTexas():
-    return
+    logger.warning("getting Texas database!")
+    train_size = 10_000
+    test_size = 10_000
+    random_state = 69
+    shadow_size = 30_000    
+
+    X = check_mul_paths('texas/' + 'texas_100_v2_features.p')
+    y = check_mul_paths('texas/' + 'texas_100_v2_labels.p')
+    fName = check_mul_paths('texas/' + 'texas_100_v2_feature_desc.p')
+
+    total_size = shadow_size + test_size + train_size
+    if not total_size < len(X) : raise Exception(f"your don't have enough data for these settings. your original X is of size {len(X)} ")
+    
+    X_shadow, X = take_and_remove_items(X, shadow_size)
+    y = y.reshape(-1, 1)
+    y = makeOneHot(y)
+    y_shadow, y = take_and_remove_items(y, shadow_size)       
+    from sklearn.model_selection import train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
+    logger.warning("got Texas database!")
+
+    return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 
 def getMNIST():
     return
@@ -54,7 +99,8 @@ def getDNA():
     return
 
 
-dataset = 'purchase-100'
+dataset = 'purchase-100' 
+CONFIG["dataset"] = dataset 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 get_databasefunc = {'purchase-10': getPurchase(10), 'purchase-20':getPurchase(20), 
                     'purchase-50':getPurchase(50), 'purchase-100':getPurchase(100), 
@@ -66,7 +112,6 @@ get_databasefunc = {'purchase-10': getPurchase(10), 'purchase-20':getPurchase(20
 
 from federated_xgboost.FLTreeHMulti import H_PlainFedXGBoost # USE HMULTI
 from federated_xgboost.XGBoostCommon import XgboostLearningParam, PARTY_ID 
-from config import CONFIG, dataset, rank, logger, comm
 from data_structure.DataBaseStructure import QuantileParam
 from algo.LossFunction import LeastSquareLoss, LogLoss, SoftMax
 
@@ -90,8 +135,6 @@ logger.warning("XGBoostParameter, nTree: %d, maxDepth: %d, lambda: %f, gamma: %f
 XgboostLearningParam.N_TREES, XgboostLearningParam.MAX_DEPTH, XgboostLearningParam.LAMBDA, XgboostLearningParam.GAMMA)
 logger.warning("QuantileParameter, eps: %f, thres: %f", QuantileParam.epsilon, QuantileParam.thres_balance)
 
-import numpy as np
-
 def log_distribution(X_train, y_train, y_test):
     nTrain = len(y_train)
     nZeroTrain = np.count_nonzero(y_train == 0)
@@ -104,7 +147,7 @@ def log_distribution(X_train, y_train, y_test):
     nTrain, rTrain, nTest, rTest, X_train.shape[1])
 
 def test_global(model, getDatabaseFunc):
-    X_train, y_train, X_test, y_test, fName = getDatabaseFunc()
+    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDatabaseFunc()
     log_distribution(X_train, y_train, y_test)
     model.append_data(X_train, fName)
     model.append_label(y_train)
@@ -158,10 +201,10 @@ def test_global(model, getDatabaseFunc):
     y_pred_org = y_pred.copy()
     X = X_train
     y = y_train
-    return X, y, y_pred_org, y_test, model
+    return X, y, y_pred_org, y_test, model, X_shadow, y_shadow
 
 if rank != -1:
-    X, y, y_pred, y_test, model = test_global(model, get_databasefunc)
+    X, y, y_pred, y_test, model, X_shadow, y_shadow = test_global(model, get_databasefunc)
     if rank == PARTY_ID.SERVER:
         # model.log_info()
         import pickle
@@ -179,7 +222,11 @@ if rank != -1:
         shadowmodel = shadow_model = xgb.XGBClassifier(max_depth=CONFIG["MAX_TREE"], tree_method='approx', objective="multi:softmax", # "multi:softmax"
                             learning_rate=0.3, n_estimators=CONFIG["MAX_TREE"], gamma=CONFIG["gamma"], reg_alpha=0, reg_lambda=CONFIG["lambda"], min_child_weight = 1) 
         targetmodel = attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=8, n_estimators=50, learning_rate=0.3) 
-        
-        data = membership_inference(X, y, shadow_dataset, model, shadow_model, attack_model)
+
+        data = membership_inference(X, y, X_shadow, y_shadow, model, shadow_model, attack_model)
+        import time
+        ascii_time = time.strftime("%H:%M:%S", time.localtime(time.time()))
+        pickle.dump(data, open( f"fulldata/fulldata_{CONFIG['dataset']}_{ascii_time}.p", "wb")) # save the data for later plotting if needed
+
         from membership.plotting import prettyPlot
         prettyPlot(data)

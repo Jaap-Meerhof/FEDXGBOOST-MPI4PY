@@ -12,7 +12,7 @@ dataset = ["Iris", "GiveMeCredits", "Adult", "DefaultCredits", "AugData", "texas
 #           0         1               2           3             4           5       6
 CONFIG = {
   "model": modelArr[0],
-  "dataset": dataset[6],
+  "dataset": dataset[6], # depricated, i now update the one in the main. I should put it here again though
   "lambda": 10, # 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 5, 10 ###### CAI SO NAY NE
   "gamma": 0.5, # 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 5, 10  
   "MAX_DEPTH": 4,

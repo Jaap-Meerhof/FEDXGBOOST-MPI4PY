@@ -1,2 +1,3 @@
-def prettyPlot():
+def prettyPlot(data):
+    print(str(data))
     return
