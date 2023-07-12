@@ -203,30 +203,54 @@ def test_global(model, getDatabaseFunc):
     y = y_train
     return X, y, y_pred_org, y_test, model, X_shadow, y_shadow
 
+
+# main
 if rank != -1:
-    X, y, y_pred, y_test, model, X_shadow, y_shadow = test_global(model, get_databasefunc)
-    if rank == PARTY_ID.SERVER:
-        # model.log_info()
-        import pickle
-        pickle.dump({"model":model, "y_pred":y_pred, "y_test":y_test}, open( "debug.p", "wb"))
-        # target_model = pickle.load(open(TARGET_MODEL_NAME, "rb"))
+    full_data = []
+    # insert for loop here for multiple variables
+    for n_trees in [5 , 10, 50, 100, 300]:
+        CONFIG["MAX_DEPTH"] = n_trees
+        paramname = "N_TREES"
+        X, y, y_pred, y_test, model, X_shadow, y_shadow = test_global(model, get_databasefunc)
+        if rank == PARTY_ID.SERVER:
+            # model.log_info()
+            import pickle
+            pickle.dump({"model":model, "y_pred":y_pred, "y_test":y_test}, open( "debug.p", "wb"))
+            # target_model = pickle.load(open(TARGET_MODEL_NAME, "rb"))
 
-        acc, auc = model.evaluatePrediction(y_pred, y_test, treeid=99)    
-        print("Prediction: ", acc, auc)
-        from membership.MembershipInference import membership_inference
-        from copy import deepcopy
+            acc, auc = model.evaluatePrediction(y_pred, y_test, treeid=99)    
+            print("Prediction: ", acc, auc)
+            from membership.MembershipInference import membership_inference
+            from copy import deepcopy
+            
+            shadow_X = X.deepcopy()
+            
+            import xgboost as xgb
+            shadowmodel = shadow_model = xgb.XGBClassifier(max_depth=CONFIG["MAX_TREE"], tree_method='approx', objective="multi:softmax", # "multi:softmax"
+                                learning_rate=0.3, n_estimators=CONFIG["MAX_TREE"], gamma=CONFIG["gamma"], reg_alpha=0, reg_lambda=CONFIG["lambda"], min_child_weight = 1) 
+            targetmodel = attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=8, n_estimators=50, learning_rate=0.3) 
+
+            data = membership_inference(X, y, X_shadow, y_shadow, model, shadow_model, attack_model)
+
+            full_data.append(data)
+
+            # from membership.plotting import prettyPlot
         
-        shadow_X = X.deepcopy()
-        
-        import xgboost as xgb
-        shadowmodel = shadow_model = xgb.XGBClassifier(max_depth=CONFIG["MAX_TREE"], tree_method='approx', objective="multi:softmax", # "multi:softmax"
-                            learning_rate=0.3, n_estimators=CONFIG["MAX_TREE"], gamma=CONFIG["gamma"], reg_alpha=0, reg_lambda=CONFIG["lambda"], min_child_weight = 1) 
-        targetmodel = attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=8, n_estimators=50, learning_rate=0.3) 
+    labels = ["acc_training_target", "acc_test_target", "overfit_target", 
+                "acc_training_shadow", "acc_test_shadow", "overfit_shadow", 
+                "acc_X_attack", "acc_other_attack", 
+                "precision_50_attack", "acc_50_attack"]
+    labels = [paramname] + labels
+    print(labels)
+    print(full_data)
+    import time
+    ascii_time = time.strftime("%H:%M", time.localtime(time.time()))
+    pickle.dump(data, open( f"fulldata/fulldata_{CONFIG['dataset']}_{ascii_time}.p", "wb")) # save the data for later plotting if needed
 
-        data = membership_inference(X, y, X_shadow, y_shadow, model, shadow_model, attack_model)
-        import time
-        ascii_time = time.strftime("%H:%M:%S", time.localtime(time.time()))
-        pickle.dump(data, open( f"fulldata/fulldata_{CONFIG['dataset']}_{ascii_time}.p", "wb")) # save the data for later plotting if needed
-
-        from membership.plotting import prettyPlot
-        prettyPlot(data)
+    # params = Params(N_TREES, MAX_DEPTH, ETA, REG_LAMBDA, REG_ALPHA, GAMMA, MIN_CHILD_WEIGHT, eA = EA, n_bins=N_BINS, n_participants=N_PARTICIPANTS, num_class=10)
+    paramsstring = f""
+    PLOT_NAME = "test.png"
+    PLOT_TITLE = "testing"
+    from membership.plotting import plot_data
+    plot_data(np.array(full_data), labels, PLOT_NAME, paramsstring, suptext= PLOT_TITLE)
+    # prettyPlot(fulldata)
