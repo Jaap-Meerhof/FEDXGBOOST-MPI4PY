@@ -135,6 +135,11 @@ class H_FLXGBoostClassifierBase():
     
                 G = np.array(self.trees[0][0].learningParam.LOSS_FUNC.gradient(y, y_pred))#.reshape(-1)
                 H = np.array(self.trees[0][0].learningParam.LOSS_FUNC.hess(y, y_pred))#.reshape(-1)
+
+                # I should create a mapping Split candidate -> gradient, hessian
+
+                orgData
+
                 comm.send((G,H), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
         print("Received the abort boosting flag from AP")
