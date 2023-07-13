@@ -132,13 +132,19 @@ class H_FLXGBoostClassifierBase():
                     
                 # dataFit = QuantiledDataBase(self.dataBase)
                 # dataFit = self.qDataBase
-    
+
                 G = np.array(self.trees[0][0].learningParam.LOSS_FUNC.gradient(y, y_pred))#.reshape(-1)
                 H = np.array(self.trees[0][0].learningParam.LOSS_FUNC.hess(y, y_pred))#.reshape(-1)
+                # G = sum(overal waar de s > x > s )
+                # G should not be tied to individual value, it should be tied to sum of that split
 
                 # I should create a mapping Split candidate -> gradient, hessian
 
-                orgData
+                # splits = self.qDataBase # QuantiledDataBase()
+                # data = orgData
+
+                # i want to send split, gradients and hessians summed to the splits
+                
 
                 comm.send((G,H), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
@@ -335,8 +341,6 @@ class H_FLPlainXGBoostTree():
 
 
     def fit(self, qDataBase: QuantiledDataBase, g, h):
-        pass
-
         qDataBase.appendGradientsHessian(g, h) # set the gradients and hessians
         rootNode = FLTreeNode()
         self.grow(qDataBase, depth=1, NodeDirection= TreeNodeType.ROOT, currentNode = rootNode)

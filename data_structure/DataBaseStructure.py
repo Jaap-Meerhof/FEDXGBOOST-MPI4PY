@@ -172,8 +172,8 @@ class QuantiledDataBase(DataBase):
         self.nUsers = dataBase.nUsers
         # Perform the quantiled for all the feature (copy, don't change the orgiginal data)
         if dataBase is not None:
-            for feature, value in dataBase.featureDict.items():
-                self.featureDict[feature] = QuantiledFeature(feature, value)
+            for fName, fData in dataBase.featureDict.items():
+                self.featureDict[fName] = QuantiledFeature(fName, fData)
 
         self.gradVec = []
         self.hessVec = []
@@ -203,8 +203,8 @@ class QuantiledDataBase(DataBase):
 
     def get_merged_splitting_matrix(self):
         retMergedSM = np.array([])
-        for key, feature in self.featureDict.items():
-            fSM, sc = self.featureDict[key].get_splitting_info() # splitting matrix, splitting candidites
+        for fName, fData in self.featureDict.items():
+            fSM, sc = self.featureDict[fName].get_splitting_info() # splitting matrix, splitting candidites
             if not retMergedSM.size:
                 retMergedSM = fSM
             # Append to the total splitting matrix if the quantiled is feasible

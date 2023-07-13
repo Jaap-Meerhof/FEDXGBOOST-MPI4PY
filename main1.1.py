@@ -126,7 +126,7 @@ QuantileParam.thres_balance = 0.3
 XgboostLearningParam.N_TREES = CONFIG["MAX_TREE"]
 XgboostLearningParam.MAX_DEPTH = CONFIG["MAX_DEPTH"]
 
-NCLASSES = 100
+NCLASSES = 10
 if CONFIG["model"] == "PlainXGBoost":
     model = H_PlainFedXGBoost(XgboostLearningParam.N_TREES, nClasses=NCLASSES)
 
@@ -177,7 +177,7 @@ def test_global(model, getDatabaseFunc):
         model.append_data(X_train, fName)
         model.set_qDataBase(quantile)
     else:
-        quantile = quantile.splitupHorizontal(0, 5_000)
+        quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
         model.set_qDataBase(quantile)
         model.append_data(X_train_my, fName)
         model.append_label(y_train_my)

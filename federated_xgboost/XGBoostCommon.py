@@ -24,6 +24,9 @@ class XgboostLearningParam():
 def compute_splitting_score(SM, GVec, HVec, lamb, gamma):
     G = sum(GVec)
     H = sum(HVec)
+    print(f"SM: {np.shape(SM)}")
+    print(f"Gvec: {np.shape(GVec)}")
+
     GRVec = np.matmul(SM, GVec)
     HRVec = np.matmul(SM, HVec)
     GLVec = G - GRVec
