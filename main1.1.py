@@ -99,7 +99,7 @@ def getDNA():
     return
 
 
-dataset = 'purchase-100' 
+dataset = 'purchase-10' 
 CONFIG["dataset"] = dataset 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 get_databasefunc = {'purchase-10': getPurchase(10), 'purchase-20':getPurchase(20), 
@@ -190,7 +190,7 @@ def test_global(model, getDatabaseFunc):
         import xgboost as xgb
         xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="multi:softmax",
                             learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10)
-        xgboostmodel.fit(X_train, y_train)
+        xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
         from sklearn.metrics import accuracy_score
         y_pred_xgb = xgboostmodel.predict(X_test)
         print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
@@ -200,7 +200,7 @@ def test_global(model, getDatabaseFunc):
 
     y_pred_org = y_pred.copy()
     X = X_train
-    y = y_train
+    y = y_train 
     return X, y, y_pred_org, y_test, model, X_shadow, y_shadow
 
 
