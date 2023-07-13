@@ -196,7 +196,7 @@ def test_global(model, getDatabaseFunc):
         print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
         print(y_pred)
     else:
-        y_pred = None
+        y_pred = [] # basically a none
 
     y_pred_org = y_pred.copy()
     X = X_train
