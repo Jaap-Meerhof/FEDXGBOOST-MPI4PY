@@ -106,7 +106,7 @@ class QuantiledFeature(FeatureData):
 
 class DataBase:
     def __init__(self) -> None:
-        self.featureDict = {}
+        self.featureDict:dict[str, FeatureData] = {}
         self.nUsers = 0
 
 

@@ -1,5 +1,5 @@
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
-                      "/home/hacker/cloud_jaap_meerhof/SchoolCloud/Master Thesis/Database/", \
+                      "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 
 from config import CONFIG, dataset, rank, logger, comm
