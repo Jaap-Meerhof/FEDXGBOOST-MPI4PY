@@ -18,6 +18,8 @@ dependencies:
 - six=1.16.0
 - xgboost 
 
+# conda env create -f environment.yml
+
 # conda install -c conda-forge mpi4py
 # pip install python-dp pyfhel scikit-learn phe
 

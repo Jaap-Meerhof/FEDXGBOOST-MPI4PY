@@ -38,7 +38,7 @@ class H_FLXGBoostClassifierBase():
         raise NotImplementedError
     
     def set_qDataBase(self, qDataBase):
-        self.qDataBase = qDataBase
+        self.qDataBase:QuantiledDataBase = qDataBase
 
     def append_data(self, dataTable, fName = None):
         """
@@ -135,6 +135,29 @@ class H_FLXGBoostClassifierBase():
     
                 G = np.array(self.trees[0][0].learningParam.LOSS_FUNC.gradient(y, y_pred))#.reshape(-1)
                 H = np.array(self.trees[0][0].learningParam.LOSS_FUNC.hess(y, y_pred))#.reshape(-1)
+                Gkv = [] #np.zeros((self.nClasses, amount_of_bins))
+                k = 0
+                for fName, fData in self.qDataBase.featureDict.items():
+                    splits = self.qDataBase.featureDict[fName].splittingCandidates
+                    Gk = np.zeros((np.shape(splits)[0] + 1,))
+
+                    data = orgData.featureDict[fName]
+                    gradients = G[k, :]
+                    hessians = H[k, :]
+
+                    # append gradient of corresponding data to the bin in which the data fits. 
+                    bin_indices = np.searchsorted(splits, data)
+                    for index in range(np.shape(data)[0]):
+                        bin = bin_indices[index]
+                        Gk[bin] += gradients[index]
+
+                    Gkv.append(Gk)
+
+                    k -=- 1
+                    
+                # process G, H put them in bins
+                # line 
+
                 comm.send((G,H), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
         print("Received the abort boosting flag from AP")

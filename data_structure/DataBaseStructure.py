@@ -106,7 +106,7 @@ class QuantiledFeature(FeatureData):
 
 class DataBase:
     def __init__(self) -> None:
-        self.featureDict = {}
+        self.featureDict:dict[str, FeatureData] = {}
         self.nUsers = 0
 
 
@@ -173,7 +173,7 @@ class QuantiledDataBase(DataBase):
         # Perform the quantiled for all the feature (copy, don't change the orgiginal data)
         if dataBase is not None:
             for feature, value in dataBase.featureDict.items():
-                self.featureDict[feature] = QuantiledFeature(feature, value)
+                self.featureDict[feature]:dict[str, QuantiledFeature] = QuantiledFeature(feature, value)
 
         self.gradVec = []
         self.hessVec = []
