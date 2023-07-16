@@ -254,8 +254,12 @@ class QuantiledDataBase(DataBase):
         return retL, retR
 
     def appendGradientsHessian(self, g, h):
-        self.gradVec = np.array(g).reshape(-1,1)
-        self.hessVec = np.array(h).reshape(-1,1)
+        if np.shape(g)[1] > 1: # I can't cast a inhomogeneous array to an np.array
+            self.gradVec = g
+            self.hessVec = h
+        else:
+            self.gradVec = np.array(g).reshape(-1,1)
+            self.hessVec = np.array(h).reshape(-1,1)
 
 
 

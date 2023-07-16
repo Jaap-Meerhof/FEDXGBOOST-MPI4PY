@@ -21,6 +21,29 @@ class XgboostLearningParam():
     N_TREES = None
     MAX_DEPTH = None
 
+def compute_splitting_score_quantile(data, GVec, HVec, lamb, gamma):
+    G = sum(GVec)
+    H = sum(HVec)
+    nClass = data.getclass
+    maxscore = -np.inf
+    feature = np.inf
+    value = np.inf
+
+    for k in range(nClass):
+        Gl, Hl = 0, 0
+        for j in range(len(GVec[k])):
+            Gl += GVec[k, j]
+            Hl += HVec[k, j]
+            Gr = G-Gl
+            Hr = H-Hl
+            score = L(G, H, Gl, Gr, Hl, Hr, lamb, gamma)
+            if score > maxscore:
+                value = data  # nogiets linker split value s_{k,v}
+                feature = k
+
+    return value, feature, score
+
+
 def compute_splitting_score(SM, GVec, HVec, lamb, gamma):
     G = sum(GVec)
     H = sum(HVec)

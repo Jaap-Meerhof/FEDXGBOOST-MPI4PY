@@ -15,6 +15,9 @@ from federated_xgboost.XGBoostCommon import XgboostLearningParam, compute_splitt
 from concurrent.futures import ThreadPoolExecutor, as_completed
 # from memory_profiler import profile
 
+# TMP 
+QUANTILE = False
+
 class MSG_ID:
     TREE_UPDATE = 69
     RESPONSE_GRADIENTS = 70
@@ -91,12 +94,25 @@ class H_FLXGBoostClassifierBase():
                     gradientsandall = {}
                     UnionGradients = np.array([[] for _ in range(self.nClasses)])
                     UnionHessians  = np.array([[] for _ in range(self.nClasses)])
-
+                    Dx = np.array([[] for _ in range(self.nClasses)])
                     for partner in range(1, nprocs): # recieve their computed gradients, hessians and others
                         gradientsandall[partner] = comm.recv(source=partner, tag=MSG_ID.RESPONSE_GRADIENTS)
-                        print(f"UnionGradients{np.shape(UnionGradients)}, gradientsandall: {np.shape(gradientsandall[partner][0].T)}")
-                        UnionGradients = np.hstack((UnionGradients, gradientsandall[partner][0].T))
-                        UnionHessians  = np.hstack((UnionHessians, gradientsandall[partner][1].T)) 
+                        
+                        g = gradientsandall[partner][0].T
+                        h = gradientsandall[partner][1].T
+
+                        print(f"UnionGradients{np.shape(UnionGradients)}, gradientsandall: {np.shape(g)}")
+                        if QUANTILE:
+                            Dx
+                            if UnionGradients == []:
+                                UnionGradients = g
+                                UnionHessians = h
+                            else:
+                                UnionGradients = [UnionGradients[k] + g[k] for k in range(len(g))]  # sum over the bins for the different features
+                                UnionHessians  = [UnionHessians[k]  + h[k] for k in range(len(h))] # sum over the bins
+                        else:
+                            UnionGradients = np.hstack((UnionGradients, gradientsandall[partner][0].T))
+                            UnionHessians  = np.hstack((UnionHessians, gradientsandall[partner][1].T)) 
                         
                     pass # TODO take actual additions of gradients on 
                     
@@ -135,29 +151,42 @@ class H_FLXGBoostClassifierBase():
 
                 G = np.array(self.trees[0][0].learningParam.LOSS_FUNC.gradient(y, y_pred))#.reshape(-1)
                 H = np.array(self.trees[0][0].learningParam.LOSS_FUNC.hess(y, y_pred))#.reshape(-1)
-                Gkv = [] #np.zeros((self.nClasses, amount_of_bins))
-                k = 0
-                for fName, fData in self.qDataBase.featureDict.items():
-                    splits = self.qDataBase.featureDict[fName].splittingCandidates
-                    Gk = np.zeros((np.shape(splits)[0] + 1,))
 
-                    data = orgData.featureDict[fName]
-                    gradients = G[k, :]
-                    hessians = H[k, :]
+                if QUANTILE:
+                    Gkv = [] #np.zeros((self.nClasses, amount_of_bins))
+                    Hkv = []
+                    Dx = []
+                    k = 0
+                    for fName, fData in self.qDataBase.featureDict.items():
+                        splits = self.qDataBase.featureDict[fName].splittingCandidates
+                        Dxk = np.zeros((np.shape(splits)[0] + 1 ,))
+                        Gk = np.zeros((np.shape(splits)[0] + 1,))
+                        Hk = np.zeros((np.shape(splits)[0] + 1,))
 
-                    # append gradient of corresponding data to the bin in which the data fits. 
-                    bin_indices = np.searchsorted(splits, data)
-                    for index in range(np.shape(data)[0]):
-                        bin = bin_indices[index]
-                        Gk[bin] += gradients[index]
+                        data = orgData.featureDict[fName]
+                        gradients = G[k, :]
+                        hessians = H[k, :]
 
-                    Gkv.append(Gk)
+                        # append gradient of corresponding data to the bin in which the data fits. 
+                        bin_indices = np.searchsorted(splits, data) # indices 
+                        
+                        Dx.append(bin_indices)
 
-                    k -=- 1
-                    
-                # process G, H put them in bins
-                # line 
+                        for index in range(np.shape(data)[0]):
+                            bin = bin_indices[index]
+                            Gk[bin] += gradients[index]
+                            Hk[bin] += hessians[index]
+                        
+                        Dx.append(splits[bin_indices])
+                        Gkv.append(Gk)
+                        Hkv.append(Hk)
 
+                        k -=- 1
+                    comm.send((Gkv, Hkv, Dx), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
+                    continue
+                # process G, H putgit pull --tags -r origin quantile_test them in bins
+                # line
+                #TODO send Gkv and Hkv instead of G, H
                 comm.send((G,H), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
         print("Received the abort boosting flag from AP")
@@ -271,6 +300,7 @@ class H_FLPlainXGBoostTree():
             qDataBase.appendGradientsHessian(G, H)
     
     def optimal_split_finding(self, qDataBase: QuantiledDataBase) -> SplittingInfo:
+        #TODO make for quantile splitting
         privateSM = qDataBase.get_merged_splitting_matrix()
         sInfo = SplittingInfo()
         if privateSM.size: # check it own candidate
