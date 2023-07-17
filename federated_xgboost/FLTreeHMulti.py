@@ -11,7 +11,7 @@ from visualizer.TreeRender import FLVisNode
 from copy import deepcopy
 
 from sklearn import metrics
-from federated_xgboost.XGBoostCommon import XgboostLearningParam, compute_splitting_score, SplittingInfo, FedDirRequestInfo, FedDirResponseInfo, PARTY_ID
+from federated_xgboost.XGBoostCommon import XgboostLearningParam, compute_splitting_score, compute_splitting_score_quantile, SplittingInfo, FedDirRequestInfo, FedDirResponseInfo, PARTY_ID
 from concurrent.futures import ThreadPoolExecutor, as_completed
 # from memory_profiler import profile
 
@@ -94,7 +94,7 @@ class H_FLXGBoostClassifierBase():
                     gradientsandall = {}
                     UnionGradients = np.array([[] for _ in range(self.nClasses)])
                     UnionHessians  = np.array([[] for _ in range(self.nClasses)])
-                    Dx = np.array([[] for _ in range(self.nClasses)])
+                    UnionData = np.array([[] for _ in range(self.nClasses)])
                     for partner in range(1, nprocs): # recieve their computed gradients, hessians and others
                         gradientsandall[partner] = comm.recv(source=partner, tag=MSG_ID.RESPONSE_GRADIENTS)
                         
@@ -103,21 +103,23 @@ class H_FLXGBoostClassifierBase():
 
                         print(f"UnionGradients{np.shape(UnionGradients)}, gradientsandall: {np.shape(g)}")
                         if QUANTILE:
-                            Dx
+                            qData =  gradients[partner[2]]
+                            qData = np.array(qData).T # (instances, nfeatures)
+
                             if UnionGradients == []:
                                 UnionGradients = g
                                 UnionHessians = h
+                                UnionData = qData
                             else:
                                 UnionGradients = [UnionGradients[k] + g[k] for k in range(len(g))]  # sum over the bins for the different features
                                 UnionHessians  = [UnionHessians[k]  + h[k] for k in range(len(h))] # sum over the bins
+                                UnionData = np.hstack((UnionData, qData)) # TODO but not neccesary for my simulation I think as splits are kwown to server already. 
                         else:
                             UnionGradients = np.hstack((UnionGradients, gradientsandall[partner][0].T))
                             UnionHessians  = np.hstack((UnionHessians, gradientsandall[partner][1].T)) 
-                        
-                    pass # TODO take actual additions of gradients on 
-                    
+
                     # dataFit = QuantiledDataBase(self.dataBase)
-                    dataFit = self.qDataBase
+                    dataFit = self.qDataBase # WE CAN ONLY USE THE SPLIT KNOWLEDGE OF THIS AS THE SERVER!!!!
                     # with ThreadPoolExecutor(max_workers=10) as executor:
                     #     results = []
                     #     future_to_stuff = [executor.submit(H_FLPlainXGBoostTree.fit, tree, dataFit, UnionGradients[c, :], UnionHessians[c, :]) for c, tree in enumerate(self.trees[:, i+1])]
@@ -153,31 +155,33 @@ class H_FLXGBoostClassifierBase():
                 H = np.array(self.trees[0][0].learningParam.LOSS_FUNC.hess(y, y_pred))#.reshape(-1)
 
                 if QUANTILE:
-                    Gkv = [] #np.zeros((self.nClasses, amount_of_bins))
+                    Gkv = []  #np.zeros((self.nClasses, amount_of_bins))
                     Hkv = []
-                    Dx = []
+                    Dx = []  # the split the data corresponds to, this means the split left of the value. If there is no split with a smaller value than take the smalles split value
                     k = 0
                     for fName, fData in self.qDataBase.featureDict.items():
                         splits = self.qDataBase.featureDict[fName].splittingCandidates
-                        Dxk = np.zeros((np.shape(splits)[0] + 1 ,))
-                        Gk = np.zeros((np.shape(splits)[0] + 1,))
-                        Hk = np.zeros((np.shape(splits)[0] + 1,))
+                        # Dxk = np.zeros((np.shape(splits)[0] + 1, ))
+                        Gk =  np.zeros((np.shape(splits)[0] + 1, ))
+                        Hk =  np.zeros((np.shape(splits)[0] + 1, ))
 
                         data = orgData.featureDict[fName]
                         gradients = G[k, :]
                         hessians = H[k, :]
 
-                        # append gradient of corresponding data to the bin in which the data fits. 
-                        bin_indices = np.searchsorted(splits, data) # indices 
+                        # append gradient of corresponding data to the bin in which the data fits.                                 
+                        bin_indices = np.searchsorted(splits, data) -1 # indices 
+                        bin_indices = [0 if x==-1 else x for x in bin_indices] # replace -1 with 0 such that upper most left values gets assigned to the right split. 
                         
-                        Dx.append(bin_indices)
+                        qData = [np.inf if x == len(splits) + 1 else x for x in np.searchsorted(splits, data)]
+
+                        Dx.append(qData)
 
                         for index in range(np.shape(data)[0]):
                             bin = bin_indices[index]
                             Gk[bin] += gradients[index]
                             Hk[bin] += hessians[index]
                         
-                        Dx.append(splits[bin_indices])
                         Gkv.append(Gk)
                         Hkv.append(Hk)
 
@@ -299,6 +303,30 @@ class H_FLPlainXGBoostTree():
             logger.debug("H {}".format(' '.join(map(str, H))))
             qDataBase.appendGradientsHessian(G, H)
     
+    def optimal_split_finding_quantile(self, qDataBase: QuantiledDataBase) -> SplittingInfo:
+        #TODO make for quantile splitting
+        splits = []
+        names = []
+        for fName, fData in self.qDataBase.featureDict.items():
+            splits.append(self.qDataBase.featureDict[fName].splittingCandidates)  
+            names.append(fName)
+        
+        sInfo = SplittingInfo()
+        value, feature, maxScore = compute_splitting_score_quantile(splits, qDataBase.gradVec, qDataBase.hessVec, XgboostLearningParam.LAMBDA, XgboostLearningParam.GAMMA)
+        if(maxScore > 0):
+            sInfo.isValid = True
+            sInfo.bestSplitParty = 0
+            # sInfo.selectedCandidate = bestSplitId
+            sInfo.bestSplitScore = maxScore
+        sInfo.log()
+        
+        if (sInfo.isValid):
+            #print(rank, sInfo.get_str_split_info())
+            sInfo.featureName = names[feature] # string
+            sInfo.splitValue = value # 
+
+        return sInfo
+        
     def optimal_split_finding(self, qDataBase: QuantiledDataBase) -> SplittingInfo:
         #TODO make for quantile splitting
         privateSM = qDataBase.get_merged_splitting_matrix()
@@ -342,7 +370,8 @@ class H_FLPlainXGBoostTree():
         # Assign the unique fed tree id for each nodeand save the splitting info for each node
         currentNode.FID = self.nNode
         self.nNode += 1
-        sInfo = self.optimal_split_finding(qDataBase) 
+        # sInfo = self.optimal_split_finding(qDataBase) 
+        sInfo = self.optimal_split_finding_quantile(qDataBase)
         # sInfo.log()
         currentNode.set_splitting_info(sInfo)
         if(sInfo.isValid):
@@ -350,7 +379,7 @@ class H_FLPlainXGBoostTree():
             # Construct the new tree if the gain is positive
             if (depth < maxDepth) and (sInfo.bestSplitScore > 0):
                 depth += 1
-                lD, rD = qDataBase.partition(sInfo.bestSplittingVector)
+                lD, rD = qDataBase.partition(sInfo.bestSplittingVector) # remove splits, gradients, hessians which are not relevant now 
                 sInfo.delSplittinVector()
                 logger.info("Splitting the database according to the best splitting vector.")
                 logger.debug("\nOriginal database: %s", qDataBase.get_info_string())

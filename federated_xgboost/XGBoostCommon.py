@@ -21,24 +21,28 @@ class XgboostLearningParam():
     N_TREES = None
     MAX_DEPTH = None
 
-def compute_splitting_score_quantile(data, GVec, HVec, lamb, gamma):
+def compute_splitting_score_quantile(splits, GVec, HVec, lamb, gamma):
+    # instances = (nFeature, depends) True if still applicalbe, False if not relevant for this node
     G = sum(GVec)
     H = sum(HVec)
-    nClass = data.getclass
+
+    # splits = self.qDataBase.featureDict[fName].splittingCandidates
+
+    nFeature = len(splits)  # splits = (nFeature, depends on amount of splits of that feature) same as GVec and HVec!
     maxscore = -np.inf
     feature = np.inf
     value = np.inf
 
-    for k in range(nClass):
+    for k in range(nFeature):
         Gl, Hl = 0, 0
-        for j in range(len(GVec[k])):
+        for j in range(len(splits[k])): # go over every split possible in this feature. 
             Gl += GVec[k, j]
             Hl += HVec[k, j]
             Gr = G-Gl
             Hr = H-Hl
             score = L(G, H, Gl, Gr, Hl, Hr, lamb, gamma)
             if score > maxscore:
-                value = data  # nogiets linker split value s_{k,v}
+                value = splits[k, j]  # nogiets linker split value s_{k,v}
                 feature = k
 
     return value, feature, score

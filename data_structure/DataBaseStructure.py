@@ -166,6 +166,18 @@ class DataBase:
         
         return dataBase
 
+class HorizontalQuantiledDataBase(DataBase):
+    def __init__(self, dataBase:DataBase = None) -> None:
+        super().__init__()
+        self.nUsers = dataBase.nUsers
+        if dataBase is not None:
+            for fName, fData in dataBase.featureDict.items():
+                self.featureDict[fName] = QuantiledFeature(fName, fData)
+
+        self.gradVec = []
+        self.hessVec = []
+
+
 class QuantiledDataBase(DataBase):
     def __init__(self, dataBase:DataBase = None) -> None:
         super().__init__()
@@ -228,7 +240,9 @@ class QuantiledDataBase(DataBase):
         logger.error("My splitting matrix: %s", str(self.get_merged_splitting_matrix()))
         assert(False)
 
-    
+    def partition(self, feature, split_value):
+        # 
+
     def partition(self, splittingVector):
         """
         Partition the database to two left and right databases according to the splitting vector
